@@ -1,5 +1,6 @@
 package net.flytre.pipe.pipe;
 
+import net.flytre.flytre_lib.client.util.WrenchItem;
 import net.flytre.flytre_lib.common.connectable.ItemPipeConnectable;
 import net.flytre.pipe.ItemRegistry;
 import net.minecraft.block.*;
@@ -111,7 +112,7 @@ public class PipeBlock extends BlockWithEntity implements ItemPipeConnectable {
             return ActionResult.SUCCESS;
         } else {
 
-            if (!(item == ItemRegistry.SERVO) && !(item == ItemRegistry.WRENCH)) {
+            if (!(item == ItemRegistry.SERVO) && !(item instanceof WrenchItem)) {
                 this.openScreen(world, pos, player);
                 return ActionResult.CONSUME;
             }

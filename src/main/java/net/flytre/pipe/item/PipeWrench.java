@@ -1,5 +1,6 @@
 package net.flytre.pipe.item;
 
+import net.flytre.flytre_lib.client.util.WrenchItem;
 import net.flytre.pipe.pipe.PipeBlock;
 import net.flytre.pipe.pipe.PipeEntity;
 import net.minecraft.block.Block;
@@ -18,8 +19,8 @@ import net.minecraft.util.math.BlockPos;
 import net.minecraft.world.RaycastContext;
 import net.minecraft.world.World;
 
-public class WrenchItem extends Item {
-    public WrenchItem(Settings settings) {
+public class PipeWrench extends Item implements WrenchItem {
+    public PipeWrench(Settings settings) {
         super(settings);
     }
 
