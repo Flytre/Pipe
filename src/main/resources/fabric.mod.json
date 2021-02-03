@@ -10,7 +10,7 @@
   "contact": {
     "website": "https://www.flytre.net"
   },
-  "license": "MIT",
+  "license": "ARR ~ Custom License",
   "icon": "assets/pipe/icon.png",
   "environment": "*",
   "entrypoints": {
