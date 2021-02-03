@@ -19,6 +19,9 @@ import net.minecraft.util.math.BlockPos;
 import net.minecraft.world.RaycastContext;
 import net.minecraft.world.World;
 
+/*
+ * Implements WrenchItem to be cross mod compatible when possible
+ */
 public class PipeWrench extends Item implements WrenchItem {
     public PipeWrench(Settings settings) {
         super(settings);
