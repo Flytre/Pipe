@@ -44,10 +44,11 @@ public class ItemRegistry {
         });
         WrenchItem.NO_SHIFT_TICK.add((World world, BlockHitResult hitResult, Block block, PlayerEntity player, BlockState state, BlockEntity blockEntity) -> {
             boolean wrenched = false;
-            if (block instanceof PipeBlock && blockEntity instanceof PipeEntity)
+            if (block instanceof PipeBlock && blockEntity instanceof PipeEntity) {
                 wrenched = ((PipeEntity) blockEntity).wrenched.get(hitResult.getSide());
 
-            player.sendMessage(new TranslatableText("item.pipe.wrench.1").append(" (" + hitResult.getSide().name() + "): " + wrenched), true);
+                player.sendMessage(new TranslatableText("item.pipe.wrench.1").append(" (" + hitResult.getSide().name() + "): " + wrenched), true);
+            }
         });
         Registry.register(Registry.ITEM, new Identifier("pipe", "servo"), SERVO);
         Registry.register(Registry.ITEM, new Identifier("pipe", "wrench"), WRENCH);

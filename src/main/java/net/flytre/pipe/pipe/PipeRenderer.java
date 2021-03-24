@@ -32,7 +32,7 @@ public class PipeRenderer extends BlockEntityRenderer<PipeEntity> {
             if (current == null)
                 current = entity.getPos();
             BlockPos next = path.size() <= 1 ? timed.getPipeResult().getDestination() : path.get(1);
-            float mult = MathHelper.clamp(19 - timed.getTime(), 0, 19);
+            float mult = 20 - timed.getTime() + tickDelta;
             if (entity.getWorld() != null) {
                 Block nextBlock = entity.getWorld().getBlockState(next).getBlock();
                 boolean inv = entity.getWorld().getBlockEntity(next) instanceof Inventory;

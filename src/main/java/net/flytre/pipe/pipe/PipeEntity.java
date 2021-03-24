@@ -38,7 +38,7 @@ public class PipeEntity extends BlockEntity implements Tickable, ExtendedScreenH
     private boolean roundRobinMode;
     private int cooldown;
     private FilterInventory filter;
-    private int afterSync;
+    private boolean needsSync;
 
 
     public PipeEntity() {
@@ -52,7 +52,7 @@ public class PipeEntity extends BlockEntity implements Tickable, ExtendedScreenH
         }
         properties = new ArrayPropertyDelegate(5);
         filter = FilterInventory.fromTag(new CompoundTag(), 1);
-        afterSync = 2;
+        needsSync = false;
     }
 
     /*
@@ -233,6 +233,7 @@ public class PipeEntity extends BlockEntity implements Tickable, ExtendedScreenH
                         stack.decrement(1);
                         cooldown = 10;
                         markDirty();
+                        needsSync = true;
                         break;
                     }
                 }
@@ -311,6 +312,7 @@ public class PipeEntity extends BlockEntity implements Tickable, ExtendedScreenH
         for (TimedPipeResult timed : items) {
             timed.decreaseTime();
             if (timed.getTime() <= 0) {
+                needsSync = true;
                 Queue<BlockPos> path = timed.getPipeResult().getPath();
                 if (this.pos.equals(path.peek()))
                     path.poll(); //remove current block
@@ -361,8 +363,15 @@ public class PipeEntity extends BlockEntity implements Tickable, ExtendedScreenH
     @Override
     public void tick() {
 
-        if (world == null || world.isClient)
+        if (world == null)
             return;
+
+        if (world.isClient) {
+            for (TimedPipeResult timed : items) {
+                timed.decreaseTime();
+            }
+            return;
+        }
 
         if (cooldown <= 0) {
             addToQueue();
@@ -370,12 +379,9 @@ public class PipeEntity extends BlockEntity implements Tickable, ExtendedScreenH
 
         tickQueuedItems();
 
-        if (items.size() > 0) {
+        if (needsSync) {
             sync();
-            afterSync = 30;
-        } else if (afterSync > 0) {
-            sync();
-            afterSync--;
+            needsSync = false;
         }
 
         updateDelegate();
@@ -421,6 +427,7 @@ public class PipeEntity extends BlockEntity implements Tickable, ExtendedScreenH
 
     public void addResultToPending(TimedPipeResult result) {
         this.items.add(result);
+        sync();
     }
 
     @Override
@@ -451,10 +458,13 @@ public class PipeEntity extends BlockEntity implements Tickable, ExtendedScreenH
 
     @Override
     public CompoundTag toClientTag(CompoundTag tag) {
-        ListTag list = new ListTag();
-        for (TimedPipeResult piped : items)
-            list.add(piped.toTag(new CompoundTag(), true));
-        tag.put("queue", list);
+
+        if (Pipe.PIPE_CONFIG.getConfig().shouldRenderItems()) {
+            ListTag list = new ListTag();
+            for (TimedPipeResult piped : items)
+                list.add(piped.toTag(new CompoundTag(), true));
+            tag.put("queue", list);
+        }
         return super.toTag(tag);
     }
 
