@@ -12,6 +12,8 @@ group = project.maven_group
 
 repositories {
     maven { url "https://jitpack.io" }
+    maven { url "https://maven.shedaniel.me/" }
+
     jcenter()
 }
 
@@ -27,6 +29,9 @@ dependencies {
     // PSA: Some older mods, compiled on Loom 0.2.1, might have outdated Maven POMs.
     // You may need to force-disable transitiveness on them.
     modCompile 'com.github.Flytre:FlytreLib:0b602f3373f8768128dbdf77ebe0b1f43745c99e'
+
+    modCompileOnly "me.shedaniel:RoughlyEnoughItems-api:5.11.188"
+    modRuntime "me.shedaniel:RoughlyEnoughItems:5.11.188"
 }
 
 processResources {

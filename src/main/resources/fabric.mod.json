@@ -19,6 +19,9 @@
     ],
     "main": [
       "net.flytre.pipe.Pipe"
+    ],
+    "rei_plugins": [
+      "net.flytre.pipe.rei.PipePlugin"
     ]
   },
   "mixins": [

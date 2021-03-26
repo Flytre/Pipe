@@ -36,7 +36,7 @@ public class PipeScreen extends HandledScreen<PipeHandler> {
 
         int startFrame = handler.getFilterType();
         ToggleButton whitelistButton = new ToggleButton(this.x + 177, this.height / 2 - 80, 16, 16, startFrame, WHITELIST_BUTTON, (buttonWidget) -> {
-            sendPacket((ToggleButton) buttonWidget,Packets.FILTER_TYPE);
+            sendPacket((ToggleButton) buttonWidget, Packets.FILTER_TYPE);
         }, "");
         whitelistButton.setTooltips(new TranslatableText("block.pipe.item_pipe.whitelist"), new TranslatableText("block.pipe.item_pipe.blacklist"));
         whitelistButton.setTooltipRenderer(this::renderTooltip);
@@ -45,7 +45,7 @@ public class PipeScreen extends HandledScreen<PipeHandler> {
 
         startFrame = handler.getRoundRobinMode();
         ToggleButton modeButton = new ToggleButton(this.x + 177, this.height / 2 - 60, 16, 16, startFrame, MODE_BUTTON, (buttonWidget) -> {
-            sendPacket((ToggleButton) buttonWidget,Packets.PIPE_MODE);
+            sendPacket((ToggleButton) buttonWidget, Packets.PIPE_MODE);
 
         }, "");
         modeButton.setTooltips(new TranslatableText("block.pipe.item_pipe.closest"), new TranslatableText("block.pipe.item_pipe.round_robin"));
@@ -55,7 +55,7 @@ public class PipeScreen extends HandledScreen<PipeHandler> {
 
         startFrame = handler.getModMatch();
         ToggleButton modButton = new ToggleButton(this.x + 177, this.height / 2 - 40, 16, 16, startFrame, MOD_BUTTON, (buttonWidget) -> {
-            sendPacket((ToggleButton) buttonWidget,Packets.MOD_MATCH);
+            sendPacket((ToggleButton) buttonWidget, Packets.MOD_MATCH);
         }, "");
         modButton.setTooltips(new TranslatableText("block.pipe.item_pipe.mod_match.false"), new TranslatableText("block.pipe.item_pipe.mod_match.true"));
         modButton.setTooltipRenderer(this::renderTooltip);
@@ -64,7 +64,7 @@ public class PipeScreen extends HandledScreen<PipeHandler> {
 
         startFrame = handler.getNbtMatch();
         ToggleButton nbtButton = new ToggleButton(this.x + 177, this.height / 2 - 20, 16, 16, startFrame, NBT_BUTTON, (buttonWidget) -> {
-            sendPacket((ToggleButton) buttonWidget,Packets.NBT_MATCH);
+            sendPacket((ToggleButton) buttonWidget, Packets.NBT_MATCH);
         }, "");
         nbtButton.setTooltips(new TranslatableText("block.pipe.item_pipe.nbt_match.false"), new TranslatableText("block.pipe.item_pipe.nbt_match.true"));
         nbtButton.setTooltipRenderer(this::renderTooltip);
@@ -112,5 +112,14 @@ public class PipeScreen extends HandledScreen<PipeHandler> {
         this.renderBackground(matrices);
         super.render(matrices, mouseX, mouseY, delta);
         this.drawMouseoverTooltip(matrices, mouseX, mouseY);
+    }
+
+
+    public int getX() {
+        return x;
+    }
+
+    public int getY() {
+        return y;
     }
 }
