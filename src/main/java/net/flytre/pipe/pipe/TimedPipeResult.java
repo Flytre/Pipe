@@ -11,7 +11,7 @@ public class TimedPipeResult {
     public static TimedPipeResult DEFAULT;
 
     static {
-        PipeResult result = new PipeResult(BlockPos.ORIGIN, new LinkedList<>(), ItemStack.EMPTY, Direction.NORTH);
+        PipeResult result = new PipeResult(BlockPos.ORIGIN, new LinkedList<>(), ItemStack.EMPTY, Direction.NORTH, Direction.NORTH);
         DEFAULT = new TimedPipeResult(result, 9999);
     }
 
@@ -59,13 +59,15 @@ public class TimedPipeResult {
 
     public void decreaseTime() {
         this.time--;
+        if (time <= 0)
+            getPipeResult().removeAnim();
     }
 
     public CompoundTag toTag(CompoundTag tag, boolean client) {
         CompoundTag pipeTag = new CompoundTag();
         tag.put("result", pipeResult.toTag(pipeTag, client));
         tag.putInt("time", time);
-        tag.putBoolean("stuck",stuck);
+        tag.putBoolean("stuck", stuck);
         return tag;
     }
 

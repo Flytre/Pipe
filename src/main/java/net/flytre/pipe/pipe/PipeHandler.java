@@ -17,21 +17,28 @@ import net.minecraft.util.math.BlockPos;
 import java.util.HashSet;
 
 public class PipeHandler extends ScreenHandler {
-    private final PropertyDelegate propertyDelegate;
     private final FilterInventory inv;
     private BlockPos pos;
+    private boolean synced;
+    private int filterType;
+    private boolean matchMod;
+    private boolean matchNbt;
+    private boolean isRoundRobin;
 
     public PipeHandler(int syncId, PlayerInventory playerInventory, PacketByteBuf buf) {
-        this(syncId, playerInventory, new PipeEntity(), new ArrayPropertyDelegate(5));
+        this(syncId, playerInventory, new PipeEntity());
         pos = buf.readBlockPos();
+        synced = true;
+        filterType = buf.readInt();
+        matchMod = buf.readBoolean();
+        matchNbt = buf.readBoolean();
+        isRoundRobin = buf.readBoolean();
     }
 
 
-    public PipeHandler(int syncId, PlayerInventory playerInventory, PipeEntity entity, PropertyDelegate propertyDelegate) {
+    public PipeHandler(int syncId, PlayerInventory playerInventory, PipeEntity entity) {
         super(Pipe.ITEM_PIPE_SCREEN_HANDLER, syncId);
         this.inv = entity.getFilter();
-        this.propertyDelegate = propertyDelegate;
-        this.addProperties(propertyDelegate);
         pos = BlockPos.ORIGIN;
 
         inv.onOpen(playerInventory.player);
@@ -110,11 +117,6 @@ public class PipeHandler extends ScreenHandler {
         return pos;
     }
 
-    public PropertyDelegate getDelegate() {
-        return this.propertyDelegate;
-    }
-
-
     @Override
     public boolean canUse(PlayerEntity player) {
         return true;
@@ -127,24 +129,24 @@ public class PipeHandler extends ScreenHandler {
     }
 
     public boolean getSynced() {
-        return propertyDelegate.get(0) == 1;
+        return synced;
     }
 
     public int getFilterType() {
-        return propertyDelegate.get(1);
+        return filterType;
     }
 
     public int getModMatch() {
-        return propertyDelegate.get(3);
+        return matchMod ? 1 : 0;
     }
 
     public int getNbtMatch() {
-        return propertyDelegate.get(4);
+        return matchNbt ? 1 : 0;
     }
 
 
     public int getRoundRobinMode() {
-        return propertyDelegate.get(2);
+        return isRoundRobin ? 1 : 0;
     }
 
     @Override

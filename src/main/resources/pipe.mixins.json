@@ -4,6 +4,7 @@
   "package": "net.flytre.pipe.mixin",
   "compatibilityLevel": "JAVA_8",
   "mixins": [
+    "ChunkHolderMixin"
   ],
   "client": [
   ],

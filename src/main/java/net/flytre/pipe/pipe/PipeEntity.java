@@ -3,8 +3,9 @@ package net.flytre.pipe.pipe;
 import net.fabricmc.fabric.api.block.entity.BlockEntityClientSerializable;
 import net.fabricmc.fabric.api.screenhandler.v1.ExtendedScreenHandlerFactory;
 import net.flytre.flytre_lib.common.inventory.FilterInventory;
-import net.flytre.flytre_lib.common.util.InventoryUtils;
 import net.flytre.flytre_lib.common.util.Formatter;
+import net.flytre.flytre_lib.common.util.InventoryUtils;
+import net.flytre.pipe.Config;
 import net.flytre.pipe.Pipe;
 import net.minecraft.block.BlockState;
 import net.minecraft.block.entity.BlockEntity;
@@ -15,8 +16,6 @@ import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
 import net.minecraft.network.PacketByteBuf;
-import net.minecraft.screen.ArrayPropertyDelegate;
-import net.minecraft.screen.PropertyDelegate;
 import net.minecraft.screen.ScreenHandler;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.text.Text;
@@ -31,7 +30,6 @@ import java.util.*;
 
 public class PipeEntity extends BlockEntity implements Tickable, ExtendedScreenHandlerFactory, BlockEntityClientSerializable {
 
-    private final PropertyDelegate properties;
     public HashMap<Direction, Boolean> wrenched;
     private Set<TimedPipeResult> items;
     private int roundRobinIndex;
@@ -47,10 +45,9 @@ public class PipeEntity extends BlockEntity implements Tickable, ExtendedScreenH
         roundRobinMode = false;
         items = new HashSet<>();
         wrenched = new HashMap<>();
-        for (Direction dir : Direction.values()) {
+        for (Direction dir : Direction.values())
             wrenched.put(dir, false);
-        }
-        properties = new ArrayPropertyDelegate(5);
+
         filter = FilterInventory.fromTag(new CompoundTag(), 1);
         needsSync = false;
     }
@@ -112,19 +109,6 @@ public class PipeEntity extends BlockEntity implements Tickable, ExtendedScreenH
         return result;
     }
 
-
-    public PropertyDelegate getProperties() {
-        return properties;
-    }
-
-    public void updateDelegate() {
-        properties.set(0, 1); //when this is 1 you know its synced
-        properties.set(1, this.filter.getFilterType());
-        properties.set(3, this.filter.isMatchMod() ? 1 : 0);
-        properties.set(4, this.filter.isMatchNbt() ? 1 : 0);
-        properties.set(2, this.isRoundRobinMode() ? 1 : 0);
-    }
-
     public FilterInventory getFilter() {
         return filter;
     }
@@ -140,13 +124,18 @@ public class PipeEntity extends BlockEntity implements Tickable, ExtendedScreenH
      */
     public ArrayList<PipeResult> findDestinations(ItemStack stack, BlockPos start, boolean one) {
 
+        Direction animate = null;
+        for (Direction dir : Direction.values()) {
+            if (getPos().offset(dir).equals(start))
+                animate = dir;
+        }
         ArrayList<PipeResult> result = new ArrayList<>();
         if (world == null)
             return result;
 
         Deque<PipeResult> to_visit = new LinkedList<>();
         Set<BlockPos> visited = new HashSet<>();
-        to_visit.add(new PipeResult(this.getPos(), new LinkedList<>(), stack, Direction.NORTH));
+        to_visit.add(new PipeResult(this.getPos(), new LinkedList<>(), stack, Direction.NORTH, animate));
 
         while (to_visit.size() > 0) {
             PipeResult popped = to_visit.pop();
@@ -166,7 +155,7 @@ public class PipeEntity extends BlockEntity implements Tickable, ExtendedScreenH
                     if (!visited.contains(current.offset(d))) {
                         LinkedList<BlockPos> newPath = new LinkedList<>(path);
                         newPath.add(current);
-                        to_visit.add(new PipeResult(current.offset(d), newPath, stack, d.getOpposite()));
+                        to_visit.add(new PipeResult(current.offset(d), newPath, stack, d.getOpposite(), animate));
                     }
                 }
             }
@@ -220,11 +209,12 @@ public class PipeEntity extends BlockEntity implements Tickable, ExtendedScreenH
                         result = results.size() == 0 ? null : results.get(0);
                     }
                     if (result != null) {
-                        items.add(new TimedPipeResult(result, 20));
+                        items.add(new TimedPipeResult(result, 30));
                         stack.decrement(1);
                         cooldown = 10;
                         markDirty();
-                        needsSync = true;
+                        if (result.getLength() < Pipe.PIPE_CONFIG.getConfig().maxRenderPipeLength)
+                            needsSync = true;
                         break;
                     }
                 }
@@ -303,7 +293,8 @@ public class PipeEntity extends BlockEntity implements Tickable, ExtendedScreenH
         for (TimedPipeResult timed : items) {
             timed.decreaseTime();
             if (timed.getTime() <= 0) {
-                needsSync = true;
+                if (timed.getPipeResult().getLength() < Pipe.PIPE_CONFIG.getConfig().maxRenderPipeLength)
+                    needsSync = true;
                 Queue<BlockPos> path = timed.getPipeResult().getPath();
                 if (this.pos.equals(path.peek()))
                     path.poll(); //remove current block
@@ -375,8 +366,6 @@ public class PipeEntity extends BlockEntity implements Tickable, ExtendedScreenH
             needsSync = false;
         }
 
-        updateDelegate();
-
         if (cooldown > 0)
             cooldown--;
     }
@@ -418,12 +407,17 @@ public class PipeEntity extends BlockEntity implements Tickable, ExtendedScreenH
 
     public void addResultToPending(TimedPipeResult result) {
         this.items.add(result);
-        sync();
+        if (result.getPipeResult().getLength() < Pipe.PIPE_CONFIG.getConfig().maxRenderPipeLength)
+            sync();
     }
 
     @Override
     public void writeScreenOpeningData(ServerPlayerEntity serverPlayerEntity, PacketByteBuf packetByteBuf) {
         packetByteBuf.writeBlockPos(pos);
+        packetByteBuf.writeInt(this.filter.getFilterType());
+        packetByteBuf.writeBoolean(this.filter.isMatchMod());
+        packetByteBuf.writeBoolean(this.filter.isMatchNbt());
+        packetByteBuf.writeBoolean(this.isRoundRobinMode());
     }
 
     @Override
@@ -433,7 +427,7 @@ public class PipeEntity extends BlockEntity implements Tickable, ExtendedScreenH
 
     @Override
     public @Nullable ScreenHandler createMenu(int syncId, PlayerInventory inv, PlayerEntity player) {
-        return new PipeHandler(syncId, inv, this, getProperties());
+        return new PipeHandler(syncId, inv, this);
     }
 
     @Override
@@ -450,14 +444,21 @@ public class PipeEntity extends BlockEntity implements Tickable, ExtendedScreenH
     @Override
     public CompoundTag toClientTag(CompoundTag tag) {
 
-        if (Pipe.PIPE_CONFIG.getConfig().shouldRenderItems()) {
-            ListTag list = new ListTag();
-            for (TimedPipeResult piped : items)
+        Config cfg = Pipe.PIPE_CONFIG.getConfig();
+        ListTag list = new ListTag();
+        for (TimedPipeResult piped : items)
+            if (piped.getPipeResult().getLength() < cfg.maxRenderPipeLength)
                 list.add(piped.toTag(new CompoundTag(), true));
-            tag.put("queue", list);
-        }
+
+        tag.put("queue", list);
+
         return super.toTag(tag);
     }
 
-
+    @Override
+    public void sync() {
+        if (!Pipe.PIPE_CONFIG.getConfig().renderItems)
+            return;
+        BlockEntityClientSerializable.super.sync();
+    }
 }

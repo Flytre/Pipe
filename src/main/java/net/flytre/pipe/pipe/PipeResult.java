@@ -14,12 +14,16 @@ public class PipeResult {
     private final BlockPos destination;
     private final ItemStack stack;
     private final Direction direction;
+    private Direction anim;
+    private int length;
 
-    public PipeResult(BlockPos destination, LinkedList<BlockPos> path, ItemStack stack, Direction direction) {
+    public PipeResult(BlockPos destination, LinkedList<BlockPos> path, ItemStack stack, Direction direction, Direction anim) {
         this.path = path;
         this.destination = destination;
         this.stack = stack.copy();
         this.direction = direction;
+        this.length = path.size();
+        this.anim = anim;
     }
 
     public static PipeResult fromTag(CompoundTag tag) {
@@ -30,10 +34,22 @@ public class PipeResult {
         for (int i = 0; i < list.size(); i++)
             path.add(Formatter.arrToPos(list.getIntArray(i)));
 
+        int length = tag.getInt("length");
         CompoundTag stack = tag.getCompound("stack");
         ItemStack stack2 = ItemStack.fromTag(stack);
         Direction d = Direction.byId(tag.getInt("dir"));
-        return new PipeResult(end, path, stack2, d);
+        Direction anim = tag.contains("anim") ? Direction.byId(tag.getInt("anim")) : null;
+        PipeResult result = new PipeResult(end, path, stack2, d, anim);
+        result.length = length;
+        return result;
+    }
+
+    public void removeAnim() {
+        anim = null;
+    }
+
+    public Direction getAnim() {
+        return anim;
     }
 
     public LinkedList<BlockPos> getPath() {
@@ -65,6 +81,13 @@ public class PipeResult {
         this.stack.toTag(stack);
         tag.put("stack", stack);
         tag.putInt("dir", direction.getId());
+
+        if (anim != null)
+            tag.putInt("anim", anim.getId());
+
+        if (!client)
+            tag.putInt("length", length);
+
         return tag;
     }
 
@@ -72,6 +95,9 @@ public class PipeResult {
         return stack;
     }
 
+    public int getLength() {
+        return length;
+    }
 
     @Override
     public String toString() {
