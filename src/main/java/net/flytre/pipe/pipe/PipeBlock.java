@@ -113,8 +113,13 @@ public class PipeBlock extends BlockWithEntity implements ItemPipeConnectable {
         } else {
 
             if (!(item == ItemRegistry.SERVO) && !(item instanceof WrenchItem)) {
-                this.openScreen(world, pos, player);
-                return ActionResult.CONSUME;
+                for (Direction dir : Direction.values()) {
+                    if (state.get(getProperty(dir)) == PipeSide.SERVO) {
+                        this.openScreen(world, pos, player);
+                        return ActionResult.CONSUME;
+                    }
+                }
+                return ActionResult.PASS;
             }
 
             Direction side = hit.getSide();
@@ -200,8 +205,11 @@ public class PipeBlock extends BlockWithEntity implements ItemPipeConnectable {
 
     @Override
     public BlockState getStateForNeighborUpdate(BlockState state, Direction direction, BlockState newState, WorldAccess world, BlockPos pos, BlockPos posFrom) {
+
+        if (world.isClient())
+            return state;
+
         Block neighbor = world.getBlockState(posFrom).getBlock();
-        BlockState neighborState = world.getBlockState(posFrom);
         if (state.get(getProperty(direction)) == PipeSide.SERVO || isWrenched(world, pos, direction))
             return state;
 

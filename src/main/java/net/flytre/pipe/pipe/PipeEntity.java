@@ -79,7 +79,8 @@ public class PipeEntity extends BlockEntity implements Tickable, ExtendedScreenH
         for (Direction direction : Direction.values()) {
 
             if ((me.getSide(direction) == PipeSide.CONNECTED)) {
-                BlockEntity entity = world.getBlockEntity(startingPos.offset(direction));
+                BlockPos pos = startingPos.offset(direction);
+                BlockEntity entity = world.getBlockEntity(pos);
                 if (entity instanceof PipeEntity) {
                     PipeSide state = world.getBlockState(startingPos.offset(direction)).get(PipeBlock.getProperty(direction.getOpposite()));
                     boolean bl = false;
@@ -89,29 +90,19 @@ public class PipeEntity extends BlockEntity implements Tickable, ExtendedScreenH
                         PipeEntity pipeEntity = (PipeEntity) entity;
                         bl = pipeEntity.filter.isEmpty() || pipeEntity.filter.passFilterTest(stack);
                     }
-                    if (bl) {
+                    if (bl)
                         result.add(direction);
-                        continue;
-                    }
-                }
-            }
 
-            if (me.getSide(direction) == PipeSide.SERVO)
-                continue;
-
-            BlockPos pos = startingPos.offset(direction);
-            BlockEntity entity = world.getBlockEntity(pos);
-
-
-            if (entity instanceof Inventory) {
-                Inventory dInv = (Inventory) entity;
-                int[] slots = InventoryUtils.getAvailableSlots(dInv, direction.getOpposite()).toArray();
-                for (int i : slots) {
-                    ItemStack currentStack = dInv.getStack(i);
-                    if (InventoryUtils.canInsert(dInv, stack, i, direction.getOpposite())) {
-                        if (currentStack.isEmpty() || (InventoryUtils.canMergeItems(currentStack, stack) && currentStack.getCount() < currentStack.getMaxCount())) {
-                            result.add(direction);
-                            break;
+                } else if (entity instanceof Inventory) {
+                    Inventory dInv = (Inventory) entity;
+                    int[] slots = InventoryUtils.getAvailableSlots(dInv, direction.getOpposite()).toArray();
+                    for (int i : slots) {
+                        ItemStack currentStack = dInv.getStack(i);
+                        if (InventoryUtils.canInsert(dInv, stack, i, direction.getOpposite())) {
+                            if (currentStack.isEmpty() || (InventoryUtils.canMergeItems(currentStack, stack) && currentStack.getCount() < currentStack.getMaxCount())) {
+                                result.add(direction);
+                                break;
+                            }
                         }
                     }
                 }
