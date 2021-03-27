@@ -53,13 +53,13 @@ public class PipeEntity extends BlockEntity implements Tickable, ExtendedScreenH
     }
 
     /*
-       Get the transferrable directions from a pipe
+       Get the transferable directions from a pipe
        1. If the word is null or the entity at the starting pos is not a pipe return
        2. For each direction
             a. If the pipe is connected to another direction, set that direction as valid and continue. If the pipe on the other
             side is a servo, however, make sure it passes the filter test
             b. If the pipe has a servo on the end continue, can't transfer through a servo
-            c. If the adjacent block is an inventory which can recieve an item, add the inventory
+            c. If the adjacent block is an inventory which can receive an item, add the inventory
        3. Return valid directions
      */
     public static Set<Direction> transferableDirections(BlockPos startingPos, World world, ItemStack stack) {
@@ -178,6 +178,7 @@ public class PipeEntity extends BlockEntity implements Tickable, ExtendedScreenH
     private void addToQueue() {
         for (Direction d : Direction.values()) {
             if (hasServo(d) && cooldown <= 0) {
+                assert world != null;
                 Inventory out = InventoryUtils.getInventoryAt(world, this.pos.offset(d));
                 Direction opp = d.getOpposite();
 
@@ -300,6 +301,7 @@ public class PipeEntity extends BlockEntity implements Tickable, ExtendedScreenH
                     path.poll(); //remove current block
                 if (path.size() > 0) {
                     BlockPos next = path.peek();
+                    assert world != null;
                     BlockEntity entity = world.getBlockEntity(next);
                     if (!(entity instanceof PipeEntity)) {
                         ArrayList<PipeResult> results = findDestinations(timed.getPipeResult().getStack(), getPos(), true);
@@ -373,6 +375,7 @@ public class PipeEntity extends BlockEntity implements Tickable, ExtendedScreenH
     private boolean transferItem(TimedPipeResult timedPipeResult) {
 
         PipeResult processed = timedPipeResult.getPipeResult();
+        assert world != null;
         BlockEntity destination = world.getBlockEntity(processed.getDestination());
 
         if (!(destination instanceof Inventory)) {
