@@ -28,7 +28,7 @@ dependencies {
 
     // PSA: Some older mods, compiled on Loom 0.2.1, might have outdated Maven POMs.
     // You may need to force-disable transitiveness on them.
-    modCompile 'com.github.Flytre:FlytreLib:a094d81ab0f1f0ad63a63a997f74c1db515d94aa'
+    modCompile 'com.github.Flytre:FlytreLib:b1c04710a144113a368256dfc6c96b8b590959a5'
 
     modCompileOnly "me.shedaniel:RoughlyEnoughItems-api:5.11.188"
     modRuntime "me.shedaniel:RoughlyEnoughItems:5.11.188"
