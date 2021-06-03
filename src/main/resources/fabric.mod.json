@@ -20,7 +20,7 @@
     "main": [
       "net.flytre.pipe.Pipe"
     ],
-    "rei_plugins": [
+    "rei": [
       "net.flytre.pipe.rei.PipePlugin"
     ]
   },
@@ -30,7 +30,7 @@
   "depends": {
     "fabricloader": ">=0.10.8",
     "fabric": "*",
-    "minecraft": "1.16.*",
-    "flytre_lib": ">=0.2.7"
+    "minecraft": "1.17.*",
+    "flytre_lib": ">=0.2.12"
   }
 }

@@ -2,8 +2,8 @@ package net.flytre.pipe.pipe;
 
 import net.flytre.flytre_lib.common.util.Formatter;
 import net.minecraft.item.ItemStack;
-import net.minecraft.nbt.CompoundTag;
-import net.minecraft.nbt.ListTag;
+import net.minecraft.nbt.NbtCompound;
+import net.minecraft.nbt.NbtList;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Direction;
 
@@ -26,17 +26,17 @@ public class PipeResult {
         this.anim = anim;
     }
 
-    public static PipeResult fromTag(CompoundTag tag) {
+    public static PipeResult fromTag(NbtCompound tag) {
         BlockPos end = Formatter.arrToPos(tag.getIntArray("end"));
 
         LinkedList<BlockPos> path = new LinkedList<>();
-        ListTag list = tag.getList("path", 11);
+        NbtList list = tag.getList("path", 11);
         for (int i = 0; i < list.size(); i++)
             path.add(Formatter.arrToPos(list.getIntArray(i)));
 
         int length = tag.getInt("length");
-        CompoundTag stack = tag.getCompound("stack");
-        ItemStack stack2 = ItemStack.fromTag(stack);
+        NbtCompound stack = tag.getCompound("stack");
+        ItemStack stack2 = ItemStack.fromNbt(stack);
         Direction d = Direction.byId(tag.getInt("dir"));
         Direction anim = tag.contains("anim") ? Direction.byId(tag.getInt("anim")) : null;
         PipeResult result = new PipeResult(end, path, stack2, d, anim);
@@ -64,21 +64,21 @@ public class PipeResult {
         return direction;
     }
 
-    public CompoundTag toTag(CompoundTag tag, boolean client) {
-        tag.put("end", Formatter.posToTag(destination));
-        ListTag list = new ListTag();
+    public NbtCompound toTag(NbtCompound tag, boolean client) {
+        tag.put("end", Formatter.poswriteNbt(destination));
+        NbtList list = new NbtList();
         if (!client) {
             for (BlockPos pathPos : path)
-                list.add(Formatter.posToTag(pathPos));
+                list.add(Formatter.poswriteNbt(pathPos));
         } else {
             for (int i = 0; i < Math.min(path.size(), 2); i++) {
-                list.add(Formatter.posToTag(path.get(i)));
+                list.add(Formatter.poswriteNbt(path.get(i)));
             }
         }
         tag.put("path", list);
 
-        CompoundTag stack = new CompoundTag();
-        this.stack.toTag(stack);
+        NbtCompound stack = new NbtCompound();
+        this.stack.writeNbt(stack);
         tag.put("stack", stack);
         tag.putInt("dir", direction.getId());
 

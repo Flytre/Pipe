@@ -7,7 +7,6 @@ import net.fabricmc.fabric.api.blockrenderlayer.v1.BlockRenderLayerMap;
 import net.fabricmc.fabric.api.client.rendereregistry.v1.BlockEntityRendererRegistry;
 import net.fabricmc.fabric.api.client.screenhandler.v1.ScreenRegistry;
 import net.flytre.pipe.Pipe;
-import net.flytre.pipe.pipe.PipeRenderer;
 import net.minecraft.client.render.RenderLayer;
 
 @Environment(EnvType.CLIENT)

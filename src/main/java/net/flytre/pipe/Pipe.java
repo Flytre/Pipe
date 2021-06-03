@@ -3,6 +3,7 @@ package net.flytre.pipe;
 import net.fabricmc.api.ModInitializer;
 import net.fabricmc.fabric.api.client.itemgroup.FabricItemGroupBuilder;
 import net.fabricmc.fabric.api.object.builder.v1.block.FabricBlockSettings;
+import net.fabricmc.fabric.api.object.builder.v1.block.entity.FabricBlockEntityTypeBuilder;
 import net.fabricmc.fabric.api.screenhandler.v1.ScreenHandlerRegistry;
 import net.flytre.flytre_lib.config.ConfigHandler;
 import net.flytre.flytre_lib.config.ConfigRegistry;
@@ -36,7 +37,7 @@ public class Pipe implements ModInitializer {
     @Override
     public void onInitialize() {
         registerBlock(ITEM_PIPE, "item_pipe", IconMaker.STANDARD);
-        ITEM_PIPE_BLOCK_ENTITY = Registry.register(Registry.BLOCK_ENTITY_TYPE, "pipe:item_pipe", BlockEntityType.Builder.create(PipeEntity::new, ITEM_PIPE).build(null));
+        ITEM_PIPE_BLOCK_ENTITY = Registry.register(Registry.BLOCK_ENTITY_TYPE, "pipe:item_pipe", FabricBlockEntityTypeBuilder.create(PipeEntity::new, ITEM_PIPE).build(null));
         ItemRegistry.init();
         ITEM_PIPE_SCREEN_HANDLER = ScreenHandlerRegistry.registerExtended(new Identifier("pipe", "item_pipe"), PipeHandler::new);
         Packets.serverPacketRecieved();

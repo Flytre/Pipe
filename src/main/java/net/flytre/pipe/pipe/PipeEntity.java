@@ -2,7 +2,8 @@ package net.flytre.pipe.pipe;
 
 import net.fabricmc.fabric.api.block.entity.BlockEntityClientSerializable;
 import net.fabricmc.fabric.api.screenhandler.v1.ExtendedScreenHandlerFactory;
-import net.flytre.flytre_lib.common.inventory.FilterInventory;
+import net.flytre.flytre_lib.common.inventory.filter.FilterInventory;
+import net.flytre.flytre_lib.common.inventory.filter.Filtered;
 import net.flytre.flytre_lib.common.util.Formatter;
 import net.flytre.flytre_lib.common.util.InventoryUtils;
 import net.flytre.pipe.Config;
@@ -13,14 +14,13 @@ import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.entity.player.PlayerInventory;
 import net.minecraft.inventory.Inventory;
 import net.minecraft.item.ItemStack;
-import net.minecraft.nbt.CompoundTag;
-import net.minecraft.nbt.ListTag;
+import net.minecraft.nbt.NbtCompound;
+import net.minecraft.nbt.NbtList;
 import net.minecraft.network.PacketByteBuf;
 import net.minecraft.screen.ScreenHandler;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.text.Text;
 import net.minecraft.text.TranslatableText;
-import net.minecraft.util.Tickable;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Direction;
 import net.minecraft.world.World;
@@ -28,7 +28,7 @@ import org.jetbrains.annotations.Nullable;
 
 import java.util.*;
 
-public class PipeEntity extends BlockEntity implements Tickable, ExtendedScreenHandlerFactory, BlockEntityClientSerializable {
+public class PipeEntity extends BlockEntity implements ExtendedScreenHandlerFactory, BlockEntityClientSerializable, Filtered {
 
     public HashMap<Direction, Boolean> wrenched;
     private Set<TimedPipeResult> items;
@@ -39,8 +39,8 @@ public class PipeEntity extends BlockEntity implements Tickable, ExtendedScreenH
     private boolean needsSync;
 
 
-    public PipeEntity() {
-        super(Pipe.ITEM_PIPE_BLOCK_ENTITY);
+    public PipeEntity(BlockPos pos, BlockState state) {
+        super(Pipe.ITEM_PIPE_BLOCK_ENTITY, pos, state);
         roundRobinIndex = 0;
         roundRobinMode = false;
         items = new HashSet<>();
@@ -48,7 +48,7 @@ public class PipeEntity extends BlockEntity implements Tickable, ExtendedScreenH
         for (Direction dir : Direction.values())
             wrenched.put(dir, false);
 
-        filter = FilterInventory.fromTag(new CompoundTag(), 1);
+        filter = FilterInventory.readNbt(new NbtCompound(), 1);
         needsSync = false;
     }
 
@@ -237,17 +237,17 @@ public class PipeEntity extends BlockEntity implements Tickable, ExtendedScreenH
     }
 
 
-    public CompoundTag toTag(CompoundTag tag) {
+    public NbtCompound writeNbt(NbtCompound tag) {
         tag.putInt("wrenched", Formatter.hashToInt(wrenched));
         tag.putInt("rri", this.roundRobinIndex);
         tag.putBoolean("rrm", this.roundRobinMode);
         tag.putInt("cooldown", this.cooldown);
-        ListTag list = new ListTag();
+        NbtList list = new NbtList();
         for (TimedPipeResult piped : items)
-            list.add(piped.toTag(new CompoundTag(), false));
+            list.add(piped.toTag(new NbtCompound(), false));
         tag.put("queue", list);
-        tag.put("filter", filter.toTag());
-        return super.toTag(tag);
+        tag.put("filter", filter.writeNbt());
+        return super.writeNbt(tag);
     }
 
     public boolean isRoundRobinMode() {
@@ -259,21 +259,21 @@ public class PipeEntity extends BlockEntity implements Tickable, ExtendedScreenH
     }
 
     @Override
-    public void fromTag(BlockState state, CompoundTag tag) {
+    public void readNbt(NbtCompound tag) {
         this.cooldown = tag.getInt("cooldown");
         this.roundRobinIndex = tag.getInt("rri");
         this.roundRobinMode = tag.getBoolean("rrm");
         this.wrenched = Formatter.intToHash(tag.getInt("wrenched"));
-        ListTag list = tag.getList("queue", 10);
+        NbtList list = tag.getList("queue", 10);
         items = new HashSet<>();
         for (int i = 0; i < list.size(); i++) {
             TimedPipeResult result = TimedPipeResult.fromTag(list.getCompound(i));
             items.add(result);
         }
 
-        CompoundTag filter = tag.getCompound("filter");
-        this.filter = FilterInventory.fromTag(filter, 1);
-        super.fromTag(state, tag);
+        NbtCompound filter = tag.getCompound("filter");
+        this.filter = FilterInventory.readNbt(filter, 1);
+        super.readNbt(tag);
     }
 
 
@@ -344,22 +344,15 @@ public class PipeEntity extends BlockEntity implements Tickable, ExtendedScreenH
 
     }
 
-    @Override
+    public void clientTick() {
+        for (TimedPipeResult timed : items) {
+            timed.decreaseTime();
+        }
+    }
+
     public void tick() {
-
-        if (world == null)
-            return;
-
-        if (world.isClient) {
-            for (TimedPipeResult timed : items) {
-                timed.decreaseTime();
-            }
-            return;
-        }
-
-        if (cooldown <= 0) {
+        if (cooldown <= 0)
             addToQueue();
-        }
 
         tickQueuedItems();
 
@@ -434,28 +427,28 @@ public class PipeEntity extends BlockEntity implements Tickable, ExtendedScreenH
     }
 
     @Override
-    public void fromClientTag(CompoundTag tag) {
-        ListTag list = tag.getList("queue", 10);
+    public void fromClientTag(NbtCompound tag) {
+        NbtList list = tag.getList("queue", 10);
         items = new HashSet<>();
         for (int i = 0; i < list.size(); i++) {
             TimedPipeResult result = TimedPipeResult.fromTag(list.getCompound(i));
             items.add(result);
         }
-        super.fromTag(Pipe.ITEM_PIPE.getDefaultState(), tag);
+        super.readNbt(tag);
     }
 
     @Override
-    public CompoundTag toClientTag(CompoundTag tag) {
+    public NbtCompound toClientTag(NbtCompound tag) {
 
         Config cfg = Pipe.PIPE_CONFIG.getConfig();
-        ListTag list = new ListTag();
+        NbtList list = new NbtList();
         for (TimedPipeResult piped : items)
             if (piped.getPipeResult().getLength() < cfg.maxRenderPipeLength)
-                list.add(piped.toTag(new CompoundTag(), true));
+                list.add(piped.toTag(new NbtCompound(), true));
 
         tag.put("queue", list);
 
-        return super.toTag(tag);
+        return super.writeNbt(tag);
     }
 
     @Override

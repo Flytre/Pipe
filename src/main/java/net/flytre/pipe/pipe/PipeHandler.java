@@ -1,14 +1,12 @@
 package net.flytre.pipe.pipe;
 
-import net.flytre.flytre_lib.common.inventory.FilterInventory;
+import net.flytre.flytre_lib.common.inventory.filter.FilterInventory;
 import net.flytre.pipe.Pipe;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.entity.player.PlayerInventory;
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
 import net.minecraft.network.PacketByteBuf;
-import net.minecraft.screen.ArrayPropertyDelegate;
-import net.minecraft.screen.PropertyDelegate;
 import net.minecraft.screen.ScreenHandler;
 import net.minecraft.screen.slot.Slot;
 import net.minecraft.screen.slot.SlotActionType;
@@ -26,7 +24,7 @@ public class PipeHandler extends ScreenHandler {
     private boolean isRoundRobin;
 
     public PipeHandler(int syncId, PlayerInventory playerInventory, PacketByteBuf buf) {
-        this(syncId, playerInventory, new PipeEntity());
+        this(syncId, playerInventory, new PipeEntity(BlockPos.ORIGIN, Pipe.ITEM_PIPE.getDefaultState()));
         pos = buf.readBlockPos();
         synced = true;
         filterType = buf.readInt();
@@ -62,7 +60,7 @@ public class PipeHandler extends ScreenHandler {
     }
 
     @Override
-    public ItemStack onSlotClick(int slotId, int clickData, SlotActionType actionType, PlayerEntity playerEntity) {
+    public void onSlotClick(int slotId, int clickData, SlotActionType actionType, PlayerEntity playerEntity) {
         if (slotId >= 0) {
             ItemStack stack = getSlot(slotId).getStack();
             boolean isPlayerInventory = slotId >= inv.size();
@@ -74,19 +72,18 @@ public class PipeHandler extends ScreenHandler {
                 if (!inv.containsAny(items))
                     inv.put(stack);
                 else
-                    return stack;
+                    return;
             }
 
             getSlot(slotId).inventory.markDirty();
         }
-        return ItemStack.EMPTY;
     }
 
     @Override
     public ItemStack transferSlot(PlayerEntity player, int index) {
         ItemStack itemStack = ItemStack.EMPTY;
         Slot slot = this.slots.get(index);
-        if (slot != null && slot.hasStack()) {
+        if (slot.hasStack()) {
             ItemStack itemStack2 = slot.getStack();
             itemStack = itemStack2.copy();
             if (index < 9) {

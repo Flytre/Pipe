@@ -1,23 +1,24 @@
-package net.flytre.pipe.pipe;
+package net.flytre.pipe.client;
 
-import net.flytre.pipe.Pipe;
+import net.flytre.pipe.pipe.PipeBlock;
+import net.flytre.pipe.pipe.PipeEntity;
+import net.flytre.pipe.pipe.TimedPipeResult;
 import net.minecraft.block.Block;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.render.VertexConsumerProvider;
-import net.minecraft.client.render.block.entity.BlockEntityRenderDispatcher;
 import net.minecraft.client.render.block.entity.BlockEntityRenderer;
+import net.minecraft.client.render.block.entity.BlockEntityRendererFactory;
 import net.minecraft.client.render.model.json.ModelTransformation;
 import net.minecraft.client.util.math.MatrixStack;
-import net.minecraft.client.util.math.Vector3f;
 import net.minecraft.inventory.Inventory;
 import net.minecraft.util.math.BlockPos;
+import net.minecraft.util.math.Vec3f;
 
 import java.util.LinkedList;
 
-public class PipeRenderer extends BlockEntityRenderer<PipeEntity> {
+public class PipeRenderer implements BlockEntityRenderer<PipeEntity> {
 
-    public PipeRenderer(BlockEntityRenderDispatcher dispatcher) {
-        super(dispatcher);
+    public PipeRenderer(BlockEntityRendererFactory.Context ctx) {
     }
 
     @Override
@@ -41,6 +42,8 @@ public class PipeRenderer extends BlockEntityRenderer<PipeEntity> {
 
             float mult = 20 - timed.getTime() + tickDelta;
 
+            System.out.println(mult + " " + timed.getTime() + " " + tickDelta);
+
             if (entity.getWorld() != null) {
                 Block nextBlock = entity.getWorld().getBlockState(next).getBlock();
                 boolean inv = entity.getWorld().getBlockEntity(next) instanceof Inventory;
@@ -55,9 +58,9 @@ public class PipeRenderer extends BlockEntityRenderer<PipeEntity> {
             if (timed.getPipeResult().getAnim() != null) {
                 if (mult < 0f) {
                     BlockPos pos = current.offset(timed.getPipeResult().getAnim());
-                    dx = (pos.getX() - current.getX()) / 20.0f * (- mult);
-                    dy = (pos.getY() - current.getY()) / 20.0f * (- mult);
-                    dz = (pos.getZ() - current.getZ()) / 20.0f * (- mult);
+                    dx = (pos.getX() - current.getX()) / 20.0f * (-mult);
+                    dy = (pos.getY() - current.getY()) / 20.0f * (-mult);
+                    dz = (pos.getZ() - current.getZ()) / 20.0f * (-mult);
                 }
             }
             if (!timed.isStuck())
@@ -65,13 +68,13 @@ public class PipeRenderer extends BlockEntityRenderer<PipeEntity> {
             matrices.translate(0, -0.2, 0);
 
             if (timed.getPipeResult().getAnim() != null && mult < 0f) {
-                float scale = 0.5f + (mult+10f) / 10f * 0.3f;
+                float scale = 0.5f + (mult + 10f) / 10f * 0.3f;
                 matrices.scale(scale, scale, scale);
             } else
                 matrices.scale(0.8f, 0.8f, 0.8f);
             if (entity.getWorld() != null)
-                matrices.multiply(Vector3f.POSITIVE_Y.getDegreesQuaternion((entity.getWorld().getTime() + tickDelta) * 4));
-            MinecraftClient.getInstance().getItemRenderer().renderItem(timed.getPipeResult().getStack(), ModelTransformation.Mode.GROUND, light, overlay, matrices, vertexConsumers);
+                matrices.multiply(Vec3f.POSITIVE_Y.getDegreesQuaternion((entity.getWorld().getTime() + tickDelta) * 4));
+            MinecraftClient.getInstance().getItemRenderer().renderItem(timed.getPipeResult().getStack(), ModelTransformation.Mode.GROUND, light, overlay, matrices, vertexConsumers, 0);
             matrices.pop();
         }
 

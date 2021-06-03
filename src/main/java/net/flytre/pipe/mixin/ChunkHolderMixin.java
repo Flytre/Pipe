@@ -3,7 +3,6 @@ package net.flytre.pipe.mixin;
 import net.flytre.pipe.Pipe;
 import net.flytre.pipe.pipe.PipeEntity;
 import net.minecraft.block.entity.BlockEntity;
-import net.minecraft.network.Packet;
 import net.minecraft.network.packet.s2c.play.BlockEntityUpdateS2CPacket;
 import net.minecraft.server.world.ChunkHolder;
 import net.minecraft.util.math.BlockPos;
@@ -24,7 +23,7 @@ public class ChunkHolderMixin {
     private ChunkHolder.PlayersWatchingChunkProvider playersWatchingChunkProvider;
     @Shadow
     @Final
-    private ChunkPos pos;
+    ChunkPos pos;
 
     @Inject(method = "sendBlockEntityUpdatePacket", at = @At("HEAD"), cancellable = true)
     public void pipe$customPipeUpdates(World world, BlockPos pos, CallbackInfo ci) {

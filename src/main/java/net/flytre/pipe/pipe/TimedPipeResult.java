@@ -1,7 +1,7 @@
 package net.flytre.pipe.pipe;
 
 import net.minecraft.item.ItemStack;
-import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.NbtCompound;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Direction;
 
@@ -29,8 +29,8 @@ public class TimedPipeResult {
         this.stuck = stuck;
     }
 
-    public static TimedPipeResult fromTag(CompoundTag tag) {
-        CompoundTag pipeTag = tag.getCompound("result");
+    public static TimedPipeResult fromTag(NbtCompound tag) {
+        NbtCompound pipeTag = tag.getCompound("result");
         PipeResult result = PipeResult.fromTag(pipeTag);
         int time = tag.getInt("time");
         boolean stuck = tag.getBoolean("stuck");
@@ -63,8 +63,8 @@ public class TimedPipeResult {
             getPipeResult().removeAnim();
     }
 
-    public CompoundTag toTag(CompoundTag tag, boolean client) {
-        CompoundTag pipeTag = new CompoundTag();
+    public NbtCompound toTag(NbtCompound tag, boolean client) {
+        NbtCompound pipeTag = new NbtCompound();
         tag.put("result", pipeResult.toTag(pipeTag, client));
         tag.putInt("time", time);
         tag.putBoolean("stuck", stuck);

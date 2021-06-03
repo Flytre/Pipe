@@ -3,8 +3,11 @@ package net.flytre.pipe.pipe;
 import net.flytre.flytre_lib.common.compat.wrench.WrenchItem;
 import net.flytre.flytre_lib.common.connectable.ItemPipeConnectable;
 import net.flytre.pipe.ItemRegistry;
+import net.flytre.pipe.Pipe;
 import net.minecraft.block.*;
 import net.minecraft.block.entity.BlockEntity;
+import net.minecraft.block.entity.BlockEntityTicker;
+import net.minecraft.block.entity.BlockEntityType;
 import net.minecraft.entity.ai.pathing.NavigationType;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.inventory.Inventory;
@@ -87,21 +90,14 @@ public class PipeBlock extends BlockWithEntity implements ItemPipeConnectable {
     }
 
     public static EnumProperty<PipeSide> getProperty(Direction facing) {
-        switch (facing) {
-            case UP:
-                return UP;
-            case DOWN:
-                return DOWN;
-            case EAST:
-                return EAST;
-            case WEST:
-                return WEST;
-            case NORTH:
-                return NORTH;
-            case SOUTH:
-                return SOUTH;
-        }
-        return null;
+        return switch (facing) {
+            case UP -> UP;
+            case DOWN -> DOWN;
+            case EAST -> EAST;
+            case WEST -> WEST;
+            case NORTH -> NORTH;
+            case SOUTH -> SOUTH;
+        };
     }
 
     @Override
@@ -167,6 +163,7 @@ public class PipeBlock extends BlockWithEntity implements ItemPipeConnectable {
         return super.onUse(state, world, pos, player, hand, hit);
     }
 
+    @Override
     public VoxelShape getOutlineShape(BlockState state, BlockView world, BlockPos pos, ShapeContext context) {
         VoxelShape shape = NODE;
         if (state.get(UP) != PipeSide.NONE)
@@ -274,8 +271,8 @@ public class PipeBlock extends BlockWithEntity implements ItemPipeConnectable {
 
 
     @Override
-    public @Nullable BlockEntity createBlockEntity(BlockView world) {
-        return new PipeEntity();
+    public @Nullable BlockEntity createBlockEntity(BlockPos pos, BlockState state) {
+        return new PipeEntity(pos, state);
     }
 
     private void openScreen(World world, BlockPos pos, PlayerEntity player) {
@@ -308,5 +305,14 @@ public class PipeBlock extends BlockWithEntity implements ItemPipeConnectable {
         if (!(b instanceof PipeEntity))
             return;
         ((PipeEntity) b).wrenched.put(d, value);
+    }
+
+    @Nullable
+    @Override
+    public <T extends BlockEntity> BlockEntityTicker<T> getTicker(World world, BlockState state, BlockEntityType<T> type) {
+        return checkType(type, Pipe.ITEM_PIPE_BLOCK_ENTITY, (world2, pos, state2, entity) -> {
+            if (!world.isClient) entity.tick();
+            else entity.clientTick();
+        });
     }
 }
