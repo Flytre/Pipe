@@ -35,9 +35,7 @@ public class PipeScreen extends FilteredScreen<PipeHandler> {
     }
 
     @Override
-    public void tick() {
-        super.tick();
-
+    public void handledScreenTick() {
         if (!synced && handler.getSynced()) {
             onSynced();
             synced = true;
