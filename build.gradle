@@ -24,7 +24,7 @@ dependencies {
     modImplementation "net.fabricmc:fabric-loader:${project.loader_version}"
 
     modImplementation("net.fabricmc.fabric-api:fabric-api:${project.fabric_version}")
-    modImplementation 'com.github.Flytre:FlytreLib:b00da205d03c03e1b4e6d84524aa173205d6a2bc'
+    modImplementation 'com.github.Flytre:FlytreLib:4472390'
 
 
     modCompileOnly "me.shedaniel:RoughlyEnoughItems-api-fabric:6.0.247-alpha"

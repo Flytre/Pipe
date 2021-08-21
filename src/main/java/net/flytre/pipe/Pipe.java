@@ -5,8 +5,10 @@ import net.fabricmc.fabric.api.client.itemgroup.FabricItemGroupBuilder;
 import net.fabricmc.fabric.api.object.builder.v1.block.FabricBlockSettings;
 import net.fabricmc.fabric.api.object.builder.v1.block.entity.FabricBlockEntityTypeBuilder;
 import net.fabricmc.fabric.api.screenhandler.v1.ScreenHandlerRegistry;
-import net.flytre.flytre_lib.config.ConfigHandler;
-import net.flytre.flytre_lib.config.ConfigRegistry;
+import net.flytre.flytre_lib.api.base.util.PacketUtils;
+import net.flytre.flytre_lib.api.config.ConfigHandler;
+import net.flytre.flytre_lib.api.config.ConfigRegistry;
+import net.flytre.pipe.network.PipeModeC2SPacket;
 import net.flytre.pipe.pipe.PipeHandler;
 import net.flytre.pipe.pipe.PipeBlock;
 import net.flytre.pipe.pipe.PipeEntity;
@@ -40,7 +42,7 @@ public class Pipe implements ModInitializer {
         ITEM_PIPE_BLOCK_ENTITY = Registry.register(Registry.BLOCK_ENTITY_TYPE, "pipe:item_pipe", FabricBlockEntityTypeBuilder.create(PipeEntity::new, ITEM_PIPE).build(null));
         ItemRegistry.init();
         ITEM_PIPE_SCREEN_HANDLER = ScreenHandlerRegistry.registerExtended(new Identifier("pipe", "item_pipe"), PipeHandler::new);
-        Packets.serverPacketRecieved();
+        PacketUtils.registerC2SPacket(PipeModeC2SPacket.class, PipeModeC2SPacket::new);
         ConfigRegistry.registerServerConfig(PIPE_CONFIG);
     }
 }

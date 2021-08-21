@@ -1,7 +1,7 @@
 package net.flytre.pipe;
 
 import net.fabricmc.fabric.api.item.v1.FabricItemSettings;
-import net.flytre.flytre_lib.common.compat.wrench.WrenchItem;
+import net.flytre.flytre_lib.api.base.compat.wrench.WrenchItem;
 import net.flytre.pipe.item.ServoItem;
 import net.flytre.pipe.pipe.PipeBlock;
 import net.flytre.pipe.pipe.PipeEntity;
@@ -22,7 +22,7 @@ public class ItemRegistry {
     public static final Item WRENCH = new WrenchItem(new FabricItemSettings().group(Pipe.TAB).maxCount(1));
 
     public static void init() {
-        WrenchItem.USE_ON_BLOCK_ACTIONS.add(context -> {
+        WrenchItem.addUseOnBlockAction(context -> {
             if (!context.getWorld().isClient && context.getPlayer() != null && context.getPlayer().isSneaking()) {
                 BlockPos pos = context.getBlockPos();
                 BlockEntity entity = context.getWorld().getBlockEntity(pos);
@@ -33,7 +33,7 @@ public class ItemRegistry {
 
             }
         });
-        WrenchItem.SHIFT_TICK.add((World world, BlockHitResult hitResult, Block block, PlayerEntity player, BlockState state, BlockEntity blockEntity) -> {
+        WrenchItem.addShiftTickAction((World world, BlockHitResult hitResult, Block block, PlayerEntity player, BlockState state, BlockEntity blockEntity) -> {
             if (block instanceof PipeBlock) {
                 BlockEntity entity = world.getBlockEntity(hitResult.getBlockPos());
                 if (entity instanceof PipeEntity) {
@@ -42,8 +42,8 @@ public class ItemRegistry {
                 }
             }
         });
-        WrenchItem.NO_SHIFT_TICK.add((World world, BlockHitResult hitResult, Block block, PlayerEntity player, BlockState state, BlockEntity blockEntity) -> {
-            boolean wrenched = false;
+        WrenchItem.addNoShiftTickAction((World world, BlockHitResult hitResult, Block block, PlayerEntity player, BlockState state, BlockEntity blockEntity) -> {
+            boolean wrenched;
             if (block instanceof PipeBlock && blockEntity instanceof PipeEntity) {
                 wrenched = ((PipeEntity) blockEntity).wrenched.get(hitResult.getSide());
 

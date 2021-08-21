@@ -1,7 +1,7 @@
 package net.flytre.pipe.pipe;
 
-import net.flytre.flytre_lib.common.compat.wrench.WrenchItem;
-import net.flytre.flytre_lib.common.connectable.ItemPipeConnectable;
+import net.flytre.flytre_lib.api.base.compat.wrench.WrenchItem;
+import net.flytre.flytre_lib.api.storage.connectable.ItemPipeConnectable;
 import net.flytre.pipe.ItemRegistry;
 import net.flytre.pipe.Pipe;
 import net.minecraft.block.*;

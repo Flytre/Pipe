@@ -1,6 +1,6 @@
 package net.flytre.pipe.pipe;
 
-import net.flytre.flytre_lib.common.inventory.filter.FilterInventory;
+import net.flytre.flytre_lib.api.storage.inventory.filter.FilterInventory;
 import net.flytre.pipe.Pipe;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.entity.player.PlayerInventory;

@@ -1,6 +1,6 @@
 package net.flytre.pipe.pipe;
 
-import net.flytre.flytre_lib.common.util.Formatter;
+import net.flytre.flytre_lib.api.base.util.Formatter;
 import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NbtCompound;
 import net.minecraft.nbt.NbtList;
@@ -9,7 +9,7 @@ import net.minecraft.util.math.Direction;
 
 import java.util.LinkedList;
 
-public class PipeResult {
+public class PipeResult implements Cloneable {
     private final LinkedList<BlockPos> path;
     private final BlockPos destination;
     private final ItemStack stack;
@@ -65,14 +65,14 @@ public class PipeResult {
     }
 
     public NbtCompound toTag(NbtCompound tag, boolean client) {
-        tag.put("end", Formatter.poswriteNbt(destination));
+        tag.put("end", Formatter.writePosToNbt(destination));
         NbtList list = new NbtList();
         if (!client) {
             for (BlockPos pathPos : path)
-                list.add(Formatter.poswriteNbt(pathPos));
+                list.add(Formatter.writePosToNbt(pathPos));
         } else {
             for (int i = 0; i < Math.min(path.size(), 2); i++) {
-                list.add(Formatter.poswriteNbt(path.get(i)));
+                list.add(Formatter.writePosToNbt(path.get(i)));
             }
         }
         tag.put("path", list);
@@ -107,5 +107,11 @@ public class PipeResult {
                 ", stack=" + stack +
                 ", direction=" + direction +
                 '}';
+    }
+
+    @Override
+    protected PipeResult clone() {
+        @SuppressWarnings("unchecked") LinkedList<BlockPos> path2 = (LinkedList<BlockPos>) path.clone();
+        return new PipeResult(destination, path2, stack, direction, anim);
     }
 }

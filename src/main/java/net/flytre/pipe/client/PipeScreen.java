@@ -1,11 +1,12 @@
 package net.flytre.pipe.client;
 
 import com.mojang.blaze3d.systems.RenderSystem;
-import net.flytre.flytre_lib.common.inventory.filter.Filtered;
-import net.flytre.flytre_lib.common.inventory.filter.FilteredScreen;
-import net.flytre.pipe.Packets;
+import net.flytre.flytre_lib.api.storage.inventory.filter.FilteredScreen;
+import net.flytre.flytre_lib.api.storage.inventory.filter.packet.BlockFilterModeC2SPacket;
+import net.flytre.flytre_lib.api.storage.inventory.filter.packet.BlockModMatchC2SPacket;
+import net.flytre.flytre_lib.api.storage.inventory.filter.packet.BlockNbtMatchC2SPacket;
+import net.flytre.pipe.network.PipeModeC2SPacket;
 import net.flytre.pipe.pipe.PipeHandler;
-import net.minecraft.client.gui.screen.ingame.BrewingStandScreen;
 import net.minecraft.client.render.GameRenderer;
 import net.minecraft.client.util.math.MatrixStack;
 import net.minecraft.entity.player.PlayerInventory;
@@ -28,10 +29,10 @@ public class PipeScreen extends FilteredScreen<PipeHandler> {
     }
 
     private void onSynced() {
-        addButton(handler.getFilterType(), 0, MODE_BUTTON, Filtered.BLOCK_FILTER_MODE, handler::getPos, new TranslatableText("block.pipe.item_pipe.whitelist"), new TranslatableText("block.pipe.item_pipe.blacklist"));
-        addButton(handler.getRoundRobinMode(), 1, PIPE_MODE_BUTTON, Packets.PIPE_MODE, handler::getPos, new TranslatableText("block.pipe.item_pipe.closest"), new TranslatableText("block.pipe.item_pipe.round_robin"));
-        addButton(handler.getModMatch(), 2, MOD_BUTTON, Filtered.BLOCK_MOD_MATCH, handler::getPos, new TranslatableText("block.pipe.item_pipe.mod_match.false"), new TranslatableText("block.pipe.item_pipe.mod_match.true"));
-        addButton(handler.getNbtMatch(), 3, NBT_BUTTON, Filtered.BLOCK_NBT_MATCH, handler::getPos, new TranslatableText("block.pipe.item_pipe.nbt_match.false"), new TranslatableText("block.pipe.item_pipe.nbt_match.true"));
+        addButton(handler.getFilterType(), 0, MODE_BUTTON, BlockFilterModeC2SPacket::new, handler::getPos, new TranslatableText("block.pipe.item_pipe.whitelist"), new TranslatableText("block.pipe.item_pipe.blacklist"));
+        addButton(handler.getRoundRobinMode(), 1, PIPE_MODE_BUTTON, PipeModeC2SPacket::new, handler::getPos, new TranslatableText("block.pipe.item_pipe.closest"), new TranslatableText("block.pipe.item_pipe.round_robin"));
+        addButton(handler.getModMatch(), 2, MOD_BUTTON, BlockModMatchC2SPacket::new, handler::getPos, new TranslatableText("block.pipe.item_pipe.mod_match.false"), new TranslatableText("block.pipe.item_pipe.mod_match.true"));
+        addButton(handler.getNbtMatch(), 3, NBT_BUTTON, BlockNbtMatchC2SPacket::new, handler::getPos, new TranslatableText("block.pipe.item_pipe.nbt_match.false"), new TranslatableText("block.pipe.item_pipe.nbt_match.true"));
     }
 
     @Override

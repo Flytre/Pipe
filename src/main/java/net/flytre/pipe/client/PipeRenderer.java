@@ -42,8 +42,6 @@ public class PipeRenderer implements BlockEntityRenderer<PipeEntity> {
 
             float mult = 20 - timed.getTime() + tickDelta;
 
-            System.out.println(mult + " " + timed.getTime() + " " + tickDelta);
-
             if (entity.getWorld() != null) {
                 Block nextBlock = entity.getWorld().getBlockState(next).getBlock();
                 boolean inv = entity.getWorld().getBlockEntity(next) instanceof Inventory;
