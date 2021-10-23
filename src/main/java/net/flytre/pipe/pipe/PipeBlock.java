@@ -1,6 +1,7 @@
 package net.flytre.pipe.pipe;
 
 import net.flytre.flytre_lib.api.base.compat.wrench.WrenchItem;
+import net.flytre.flytre_lib.api.base.util.InventoryUtils;
 import net.flytre.flytre_lib.api.storage.connectable.ItemPipeConnectable;
 import net.flytre.pipe.ItemRegistry;
 import net.flytre.pipe.Pipe;
@@ -235,7 +236,7 @@ public class PipeBlock extends BlockWithEntity implements ItemPipeConnectable {
     }
 
     private boolean isConnectable(Block block, BlockEntity entity) {
-        return block instanceof ItemPipeConnectable || (entity instanceof Inventory && ((Inventory) entity).size() > 0);
+        return block instanceof ItemPipeConnectable || block instanceof InventoryProvider|| (entity instanceof Inventory && ((Inventory) entity).size() > 0);
     }
 
     @Override

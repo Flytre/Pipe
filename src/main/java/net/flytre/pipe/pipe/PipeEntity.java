@@ -26,7 +26,6 @@ import net.minecraft.util.math.Direction;
 import net.minecraft.util.registry.Registry;
 import net.minecraft.world.World;
 import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
 
 import java.util.*;
 import java.util.function.Function;
@@ -98,8 +97,8 @@ public final class PipeEntity extends BlockEntity implements ExtendedScreenHandl
 
     /**
      * The following two variables store data about round robin mode:
-     * -Is the pipe in round robin mode? (Versus closest valid destination)
-     * -Of all the round robin destinations, which destination is next?
+     * -Is the pipe in round-robin mode? (Versus closest valid destination)
+     * -Of all the round-robin destinations, which destination is next?
      */
     private int roundRobinIndex;
     private boolean roundRobinMode;
@@ -157,34 +156,21 @@ public final class PipeEntity extends BlockEntity implements ExtendedScreenHandl
         if (me == null)
             return result;
 
-        for (Direction direction : Direction.values()) {
+        for (Direction direction : Direction.values()) { //For each possible direction
 
-            if ((me.getSide(direction) == PipeSide.CONNECTED)) {
+            if ((me.getSide(direction) == PipeSide.CONNECTED)) { //If this pipe is connected to something
                 BlockPos pos = startingPos.offset(direction);
                 BlockEntity entity = world.getBlockEntity(pos);
-                if (entity instanceof PipeEntity) {
-                    PipeSide state = world.getBlockState(startingPos.offset(direction)).get(PipeBlock.getProperty(direction.getOpposite()));
-                    boolean bl = false;
-                    if (state == PipeSide.CONNECTED)
-                        bl = true;
-                    if (state == PipeSide.SERVO) {
-                        PipeEntity pipeEntity = (PipeEntity) entity;
-                        bl = pipeEntity.filter.isEmpty() || pipeEntity.filter.passFilterTest(stack);
-                    }
-                    if (bl)
-                        result.add(direction);
+                Inventory inventory = InventoryUtils.getInventoryAt(world, pos);
 
-                } else if (entity instanceof Inventory) {
-                    Inventory dInv = (Inventory) entity;
-                    int[] slots = InventoryUtils.getAvailableSlots(dInv, direction.getOpposite()).toArray();
-                    for (int i : slots) {
-                        ItemStack currentStack = dInv.getStack(i);
-                        if (InventoryUtils.canInsert(dInv, stack, i, direction.getOpposite())) {
-                            if (currentStack.isEmpty() || (InventoryUtils.canMergeItems(currentStack, stack) && currentStack.getCount() < currentStack.getMaxCount())) {
-                                result.add(direction);
-                                break;
-                            }
-                        }
+                if (entity instanceof PipeEntity pipeEntity) { //If Connected to another pipe
+                    PipeSide state = world.getBlockState(startingPos.offset(direction)).get(PipeBlock.getProperty(direction.getOpposite()));
+                    boolean valid = state == PipeSide.CONNECTED || (state == PipeSide.SERVO && (pipeEntity.filter.isEmpty() || pipeEntity.filter.passFilterTest(stack)));
+                    if (valid)
+                        result.add(direction);
+                } else if (inventory != null) { //If connected to an inventory
+                    if(canInsertFirm(stack,inventory,direction)) { //If the stack can be inserted into that inventory
+                        result.add(direction);
                     }
                 }
             }
@@ -199,7 +185,7 @@ public final class PipeEntity extends BlockEntity implements ExtendedScreenHandl
     private static List<PipeResult> duplicate(List<PipeResult> list) {
         List<PipeResult> result = new ArrayList<>();
         for (PipeResult pipeResult : list)
-            result.add(pipeResult.clone());
+            result.add(pipeResult.copy());
         return result;
     }
 
@@ -210,20 +196,17 @@ public final class PipeEntity extends BlockEntity implements ExtendedScreenHandl
      */
     private boolean validate(ItemStack stack, BlockPos start, PipeResult result) {
         assert world != null;
-        LinkedList<BlockPos> path = result.getPath();
-        Iterator<BlockPos> iterator = path.iterator();
+        Iterator<BlockPos> iterator = result.getPath().iterator();
         BlockEntity startEntity = world.getBlockEntity(start);
 
         while (iterator.hasNext()) {
             BlockPos next = iterator.next();
-
             if (next.equals(start))
                 continue;
 
             PipeEntity nextPipe = (PipeEntity) world.getBlockEntity(next);
-            Direction direction = Direction.fromVector(next.subtract(start));
-
-            if (!validateHelper(stack, next, startEntity, nextPipe, direction, false))
+            @NotNull Direction direction = Objects.requireNonNull(Direction.fromVector(next.subtract(start)));
+            if (!validateChain(stack, next, startEntity, nextPipe, direction))
                 return false;
 
             start = next;
@@ -231,49 +214,40 @@ public final class PipeEntity extends BlockEntity implements ExtendedScreenHandl
         }
 
         BlockPos finalPos = result.getDestination();
-        return validateHelper(stack, finalPos, startEntity, world.getBlockEntity(finalPos), Direction.fromVector(finalPos.subtract(start)), true);
+        return canInsertFirm(stack, InventoryUtils.getInventoryAt(world, finalPos), Objects.requireNonNull(Direction.fromVector(finalPos.subtract(start))));
     }
 
 
-    private boolean validateHelper(ItemStack stack, BlockPos next, BlockEntity currentEntity, BlockEntity nextEntity, Direction direction, boolean end) {
-
+    private boolean validateChain(ItemStack stack, BlockPos next, BlockEntity currentEntity, BlockEntity nextEntity, @NotNull Direction direction) {
         assert world != null;
 
-        PipeEntity currentEntityPipe = null;
-        PipeEntity nextEntityPipe = null;
+        PipeEntity currentPipe = currentEntity instanceof PipeEntity ? (PipeEntity) currentEntity : null;
+        PipeEntity nextPipe = nextEntity instanceof PipeEntity ? (PipeEntity) nextEntity : null;
 
-        if (currentEntity instanceof PipeEntity)
-            currentEntityPipe = (PipeEntity) currentEntity;
-
-        if (nextEntity instanceof PipeEntity)
-            nextEntityPipe = (PipeEntity) nextEntity;
-
-        if (!end && (currentEntityPipe == null || currentEntityPipe.getSide(direction) == PipeSide.CONNECTED)) {
-            if (nextEntityPipe != null) {
+        if (currentPipe == null || currentPipe.getSide(direction) == PipeSide.CONNECTED) {
+            if (nextPipe != null) {
                 PipeSide state = world.getBlockState(next).get(PipeBlock.getProperty(direction.getOpposite()));
-                boolean bl = false;
-                if (state == PipeSide.CONNECTED)
-                    bl = true;
+                boolean bl = state == PipeSide.CONNECTED;
                 if (state == PipeSide.SERVO) {
-                    bl = nextEntityPipe.filter.isEmpty() || nextEntityPipe.filter.passFilterTest(stack);
+                    bl = nextPipe.filter.isEmpty() || nextPipe.filter.passFilterTest(stack);
                 }
 
                 return bl;
             }
-        } else if (end && nextEntity instanceof Inventory) {
-            Inventory dInv = (Inventory) nextEntity;
-            int[] slots = InventoryUtils.getAvailableSlots(dInv, direction.getOpposite()).toArray();
-            for (int i : slots) {
-                ItemStack currentStack = dInv.getStack(i);
-                if (InventoryUtils.canInsert(dInv, stack, i, direction.getOpposite())) {
-                    if (currentStack.isEmpty() || (InventoryUtils.canMergeItems(currentStack, stack) && currentStack.getCount() < currentStack.getMaxCount())) {
-                        return true;
-                    }
-                }
-            }
         }
 
         return false;
+    }
+
+    //Basically, can item stack X be inserted into inventory X from Direction D
+    private static boolean canInsertFirm(ItemStack stack, Inventory destination, Direction direction) {
+        return InventoryUtils.getAvailableSlots(destination, direction.getOpposite()).anyMatch(i -> {
+            ItemStack slotStack = destination.getStack(i);
+            if (InventoryUtils.canInsert(destination, stack, i, direction.getOpposite()))
+                return slotStack.isEmpty() || (InventoryUtils.canMergeItems(slotStack, stack) && slotStack.getCount() < slotStack.getMaxCount());
+            return false;
+        });
+
     }
 
     public FilterInventory getFilter() {
@@ -300,29 +274,32 @@ public final class PipeEntity extends BlockEntity implements ExtendedScreenHandl
         if (world == null)
             return result;
 
-        Deque<PipeResult> to_visit = new LinkedList<>();
+        Deque<PipeResult> toVisit = new LinkedList<>();
         Set<BlockPos> visited = new HashSet<>();
-        to_visit.add(new PipeResult(this.getPos(), new LinkedList<>(), stack, Direction.NORTH, animate));
+        toVisit.add(new PipeResult(this.getPos(), new LinkedList<>(), stack, Direction.NORTH, animate));
 
-        while (to_visit.size() > 0) {
-            PipeResult popped = to_visit.pop();
+        while (toVisit.size() > 0) {
+            PipeResult popped = toVisit.pop();
             BlockPos current = popped.getDestination();
             Queue<BlockPos> path = popped.getPath();
-            BlockEntity entity = world.getBlockEntity(current);
-            if (!current.equals(start) && entity instanceof Inventory) {
-                if (!visited.contains(current)) {
-                    result.add(popped);
-                    if (one)
-                        return result;
+
+            if (!current.equals(start)) {
+                if (InventoryUtils.getInventoryAt(world, current) != null) {
+                    if (!visited.contains(current)) {
+                        result.add(popped);
+                        if (one)
+                            return result;
+                    }
                 }
             }
-            if (entity instanceof PipeEntity) {
+
+            if (world.getBlockEntity(current) instanceof PipeEntity) {
                 Set<Direction> neighbors = PipeEntity.transferableDirections(current, world, stack);
                 for (Direction d : neighbors) {
                     if (!visited.contains(current.offset(d))) {
                         LinkedList<BlockPos> newPath = new LinkedList<>(path);
                         newPath.add(current);
-                        to_visit.add(new PipeResult(current.offset(d), newPath, stack, d.getOpposite(), animate));
+                        toVisit.add(new PipeResult(current.offset(d), newPath, stack, d.getOpposite(), animate));
                     }
                 }
             }
@@ -336,14 +313,14 @@ public final class PipeEntity extends BlockEntity implements ExtendedScreenHandl
      * Checks the cache, and if nothing is found, calculates a route
      */
     public List<PipeResult> findDestinations(ItemStack stack, BlockPos start, boolean one) {
-
         assert world != null;
         CacheKey key = new CacheKey(stack, start, one);
         if (cache.containsKey(key)) {
             List<PipeResult> val = cache.get(key).value;
             if (val.stream().allMatch(i -> validate(stack, start, i))) {
                 lastCacheTick = world.getTime();
-                return val;
+                //Copy the cache value to prevent a reference leak which enables modifying the cache
+                return val.stream().map(PipeResult::copy).collect(Collectors.toList());
             } else {
                 cache.remove(key);
             }
@@ -351,7 +328,10 @@ public final class PipeEntity extends BlockEntity implements ExtendedScreenHandl
 
         List<PipeResult> toCache = internalFindDestinations(stack, start, one);
         cache.put(key, new CacheResult(world.getTime(), toCache));
+        lastCacheTick = world.getTime();
+        //Copy the cache value to prevent a reference leak which enables modifying the cache
         return duplicate(toCache);
+
     }
 
     /**
@@ -489,6 +469,8 @@ public final class PipeEntity extends BlockEntity implements ExtendedScreenHandl
     public void tickQueuedItems() {
         Set<TimedPipeResult> toRemove = new HashSet<>(items.size() / 2 + 1);
         Set<TimedPipeResult> toAdd = new HashSet<>(items.size() / 2 + 1);
+
+
         for (TimedPipeResult timed : items) {
             timed.decreaseTime();
             if (timed.getTime() <= 0) {
@@ -501,18 +483,9 @@ public final class PipeEntity extends BlockEntity implements ExtendedScreenHandl
                     BlockPos next = path.peek();
                     assert world != null;
                     BlockEntity entity = world.getBlockEntity(next);
-                    if (!(entity instanceof PipeEntity)) {
-                        List<PipeResult> results = findDestinations(timed.getPipeResult().getStack(), getPos(), true);
-                        if (results.size() == 0) {
-                            timed.setTime(20);
-                            timed.setStuck(true);
-                        } else {
-                            TimedPipeResult zero = new TimedPipeResult(results.get(0), 20);
-                            toAdd.add(zero);
-                            toRemove.add(timed);
-                        }
+                    if (!(entity instanceof PipeEntity pipeEntity)) {
+                        tickHelper(toRemove, toAdd, timed);
                     } else {
-                        PipeEntity pipeEntity = (PipeEntity) entity;
                         timed.setStuck(false);
                         pipeEntity.addResultToPending(timed);
                         toRemove.add(timed);
@@ -522,15 +495,7 @@ public final class PipeEntity extends BlockEntity implements ExtendedScreenHandl
                     boolean transferred = transferItem(timed);
 
                     if (!transferred) {
-                        List<PipeResult> results = findDestinations(timed.getPipeResult().getStack(), getPos(), true);
-                        if (results.size() == 0) {
-                            timed.setTime(20);
-                            timed.setStuck(true);
-                        } else {
-                            TimedPipeResult zero = new TimedPipeResult(results.get(0), 20);
-                            toAdd.add(zero);
-                            toRemove.add(timed);
-                        }
+                        tickHelper(toRemove, toAdd, timed);
                     } else
                         toRemove.add(timed);
                 }
@@ -540,6 +505,18 @@ public final class PipeEntity extends BlockEntity implements ExtendedScreenHandl
         items.removeAll(toRemove);
         items.addAll(toAdd);
 
+    }
+
+    private void tickHelper(Set<TimedPipeResult> toRemove, Set<TimedPipeResult> toAdd, TimedPipeResult timed) {
+        List<PipeResult> results = findDestinations(timed.getPipeResult().getStack(), getPos(), true);
+        if (results.size() == 0) {
+            timed.setTime(20);
+            timed.setStuck(true);
+        } else {
+            TimedPipeResult zero = new TimedPipeResult(results.get(0), 20);
+            toAdd.add(zero);
+            toRemove.add(timed);
+        }
     }
 
     /**
@@ -570,7 +547,7 @@ public final class PipeEntity extends BlockEntity implements ExtendedScreenHandl
         if (cooldown > 0)
             cooldown--;
 
-        if (lastCacheTick > 600) { //30 secs
+        if (world == null || (world.getTime() - lastCacheTick > 600)) { //30 secs
             cache.clear();
         }
     }
@@ -583,29 +560,27 @@ public final class PipeEntity extends BlockEntity implements ExtendedScreenHandl
 
         PipeResult processed = timedPipeResult.getPipeResult();
         assert world != null;
-        BlockEntity destination = world.getBlockEntity(processed.getDestination());
+        Inventory inv = InventoryUtils.getInventoryAt(world, processed.getDestination());
 
-        if (!(destination instanceof Inventory)) {
+        if (inv == null)
+            return false;
+
+        if (InventoryUtils.isInventoryFull(inv, processed.getDirection())) {
             return false;
         }
-        Inventory dInv = (Inventory) destination;
 
-        if (InventoryUtils.isInventoryFull(dInv, processed.getDirection())) {
-            return false;
-        }
-
-        int[] slots = InventoryUtils.getAvailableSlots(dInv, processed.getDirection()).toArray();
+        int[] slots = InventoryUtils.getAvailableSlots(inv, processed.getDirection()).toArray();
         for (int i : slots) {
-            ItemStack currentStack = dInv.getStack(i);
-            if (InventoryUtils.canInsert(dInv, processed.getStack(), i, processed.getDirection())) {
+            ItemStack currentStack = inv.getStack(i);
+            if (InventoryUtils.canInsert(inv, processed.getStack(), i, processed.getDirection())) {
                 if (currentStack.isEmpty()) {
-                    dInv.setStack(i, processed.getStack());
-                    dInv.markDirty();
+                    inv.setStack(i, processed.getStack());
+                    inv.markDirty();
                     return true;
                 } else if (InventoryUtils.canMergeItems(currentStack, processed.getStack())) {
                     if (currentStack.getCount() < currentStack.getMaxCount()) {
                         currentStack.increment(1);
-                        dInv.markDirty();
+                        inv.markDirty();
                         return true;
                     }
                 }
@@ -642,7 +617,7 @@ public final class PipeEntity extends BlockEntity implements ExtendedScreenHandl
      * ScreenHandlers represent server side logic for a screen displayed client sde
      */
     @Override
-    public @Nullable ScreenHandler createMenu(int syncId, PlayerInventory inv, PlayerEntity player) {
+    public @NotNull ScreenHandler createMenu(int syncId, PlayerInventory inv, PlayerEntity player) {
         return new PipeHandler(syncId, inv, this);
     }
 
@@ -711,6 +686,9 @@ public final class PipeEntity extends BlockEntity implements ExtendedScreenHandl
     }
 
 
+    /**
+     * A cache value stores both
+     */
     private record CacheResult(long time, List<PipeResult> value) {
 
     }

@@ -1,5 +1,6 @@
 package net.flytre.pipe.pipe;
 
+import com.google.common.collect.ImmutableList;
 import net.flytre.flytre_lib.api.base.util.Formatter;
 import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NbtCompound;
@@ -7,9 +8,10 @@ import net.minecraft.nbt.NbtList;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Direction;
 
+import java.util.Collection;
 import java.util.LinkedList;
 
-public class PipeResult implements Cloneable {
+public class PipeResult {
     private final LinkedList<BlockPos> path;
     private final BlockPos destination;
     private final ItemStack stack;
@@ -109,9 +111,9 @@ public class PipeResult implements Cloneable {
                 '}';
     }
 
-    @Override
-    protected PipeResult clone() {
-        @SuppressWarnings("unchecked") LinkedList<BlockPos> path2 = (LinkedList<BlockPos>) path.clone();
-        return new PipeResult(destination, path2, stack, direction, anim);
+
+    public PipeResult copy() {
+        return new PipeResult(destination, new LinkedList<>(path), stack.copy(), direction, anim);
     }
+
 }

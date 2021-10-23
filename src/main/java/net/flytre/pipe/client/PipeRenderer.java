@@ -1,5 +1,6 @@
 package net.flytre.pipe.client;
 
+import net.flytre.flytre_lib.api.base.util.InventoryUtils;
 import net.flytre.pipe.pipe.PipeBlock;
 import net.flytre.pipe.pipe.PipeEntity;
 import net.flytre.pipe.pipe.TimedPipeResult;
@@ -44,7 +45,7 @@ public class PipeRenderer implements BlockEntityRenderer<PipeEntity> {
 
             if (entity.getWorld() != null) {
                 Block nextBlock = entity.getWorld().getBlockState(next).getBlock();
-                boolean inv = entity.getWorld().getBlockEntity(next) instanceof Inventory;
+                boolean inv = InventoryUtils.getInventoryAt(entity.getWorld(), next) != null;
                 if (!(nextBlock instanceof PipeBlock) && !inv) {
                     mult = 0;
                 }
