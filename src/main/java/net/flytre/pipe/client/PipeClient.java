@@ -14,6 +14,7 @@ public class PipeClient implements ClientModInitializer {
     @Override
     public void onInitializeClient() {
         BlockRenderLayerMap.INSTANCE.putBlock(Pipe.ITEM_PIPE, RenderLayer.getCutout());
+        BlockRenderLayerMap.INSTANCE.putBlock(Pipe.FAST_PIPE, RenderLayer.getCutout());
         BlockEntityRendererRegistry.INSTANCE.register(Pipe.ITEM_PIPE_BLOCK_ENTITY, PipeRenderer::new);
         ScreenRegistry.register(Pipe.ITEM_PIPE_SCREEN_HANDLER, PipeScreen::new);
     }

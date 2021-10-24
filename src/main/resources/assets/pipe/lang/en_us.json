@@ -1,5 +1,6 @@
 {
   "block.pipe.item_pipe": "Item Pipe",
+  "block.pipe.fast_pipe": "Fast Pipe",
   "item.pipe.servo": "Servo",
   "item.pipe.wrench": "Wrench",
   "itemGroup.pipe.all" : "Pipe",

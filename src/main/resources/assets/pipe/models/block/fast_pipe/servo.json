@@ -1,9 +1,8 @@
 {
-
 	"textures": {
-		"1": "pipe:block/item_pipe_node",
-		"particle": "pipe:block/item_pipe_connector",
-		"texture": "pipe:block/item_pipe_connector"
+		"1": "pipe:block/fast_pipe/node",
+		"particle": "pipe:block/fast_pipe/connector",
+		"texture": "pipe:block/fast_pipe/connector"
 	},
 	"elements": [
 		{

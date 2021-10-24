@@ -34,6 +34,13 @@ import org.jetbrains.annotations.Nullable;
 
 import java.util.Set;
 
+/**
+ * Blocks represent each type of block added to Minecraft. There is only ONE block object for each type of block, i.e. one
+ * object represents sand (Blocks.SAND), one for dirt, one for oak logs, one for diamond ore, etc. Block object classes store
+ * data about specific categories of blocks. For example, a torch can be lit or extinguished, a door can be open or closed, a log
+ * can be placed 3 different ways so that the bark is on different sides, etc. Each individual block in the game is represented as
+ * a BlockState, which stores the Block along with its current STATE (i.e. a lever facing along the X axis in the OFF position).
+ */
 public class PipeBlock extends BlockWithEntity implements ItemPipeConnectable {
     public static final EnumProperty<PipeSide> UP;
     public static final EnumProperty<PipeSide> DOWN;
@@ -236,7 +243,7 @@ public class PipeBlock extends BlockWithEntity implements ItemPipeConnectable {
     }
 
     private boolean isConnectable(Block block, BlockEntity entity) {
-        return block instanceof ItemPipeConnectable || block instanceof InventoryProvider|| (entity instanceof Inventory && ((Inventory) entity).size() > 0);
+        return block instanceof ItemPipeConnectable || block instanceof InventoryProvider || (entity instanceof Inventory && ((Inventory) entity).size() > 0);
     }
 
     @Override
@@ -315,5 +322,32 @@ public class PipeBlock extends BlockWithEntity implements ItemPipeConnectable {
             if (!world.isClient) entity.tick();
             else entity.clientTick();
         });
+    }
+
+    /**
+     * What is this for?
+     * Basically, if a block adjacent to a pipe gets changed and that's also connectable to the pipe network, the pipe
+     * adjacent to the block will tell all pipes in the network to clear their caches and recalculate routes. This is really
+     * important to prevent stale, inaccurate cached values.
+     *
+     *
+     * @param state   Current BlockState of Pipe
+     * @param world   Current world
+     * @param pos     Current BlockPos of Pipe
+     * @param block   Previous block before update
+     * @param fromPos Position of block that caused the update
+     * @param notify  ??? Notify neighbors maybe?
+     */
+    @Override
+    public void neighborUpdate(BlockState state, World world, BlockPos pos, Block block, BlockPos fromPos, boolean notify) {
+
+        BlockState changedState = world.getBlockState(fromPos); //Get the new block at the modified position.
+        if (changedState.getBlock() instanceof AirBlock || isConnectable(changedState.getBlock(), world.getBlockEntity(fromPos))) {
+            BlockEntity pipeEntity = world.getBlockEntity(pos);
+            if (pipeEntity instanceof PipeEntity pipe) {
+                pipe.clearNetworkCache();
+            }
+        }
+        super.neighborUpdate(state, world, pos, block, fromPos, notify);
     }
 }

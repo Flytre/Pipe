@@ -35,10 +35,9 @@ public class PipeModeC2SPacket implements Packet<ServerPlayPacketListener> {
         ServerWorld world = ((ServerPlayNetworkHandler) listener).getPlayer().getServerWorld();
         world.getServer().execute(() -> {
             BlockEntity entity = world.getBlockEntity(pos);
-            if (!(entity instanceof PipeEntity))
+            if (!(entity instanceof PipeEntity pipe))
                 return;
-            PipeEntity ip = (PipeEntity) entity;
-            ip.setRoundRobinMode(val != 0);
+            pipe.setRoundRobinMode(val != 0);
         });
     }
 }

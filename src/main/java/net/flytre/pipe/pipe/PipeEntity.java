@@ -1,5 +1,7 @@
 package net.flytre.pipe.pipe;
 
+import net.fabricmc.api.EnvType;
+import net.fabricmc.api.Environment;
 import net.fabricmc.fabric.api.block.entity.BlockEntityClientSerializable;
 import net.fabricmc.fabric.api.screenhandler.v1.ExtendedScreenHandlerFactory;
 import net.flytre.flytre_lib.api.base.util.Formatter;
@@ -64,17 +66,17 @@ public final class PipeEntity extends BlockEntity implements ExtendedScreenHandl
 
             long time = world == null ? Long.MAX_VALUE : world.getTime();
             long entryTime = eldest.getValue().time;
-            return time - entryTime > 300 && size() > 10;
+            return time - entryTime > 500 && size() > 10;
         }
     };
-
     /**
      * Stores a map of each side of the pipe (indicated by direction) and whether that side is "wrenched"
      * Sides that are "wrenches" artificially block incoming connections, so that pipes can be placed
      * side by side without connecting
      */
     public Map<Direction, Boolean> wrenched;
-
+    //How long since the cache has been cleared by block update
+    private int ticksSinceLastCacheClear = 0;
     /**
      * How long ago the cache was used. If the cache hasn't been used in a long time, which means
      * items stopped flowing through that pipe, just empty the cache to save memory
@@ -119,6 +121,13 @@ public final class PipeEntity extends BlockEntity implements ExtendedScreenHandl
      * Stores when data needs to be synced to the client, then syncs it when this is true
      */
     private boolean needsSync;
+
+
+    /**
+     * How fast this pipe should move items, so its speed.
+     */
+    private int ticksPerOperation = 20;
+    private boolean speedSet = false;
 
 
     /**
@@ -169,7 +178,7 @@ public final class PipeEntity extends BlockEntity implements ExtendedScreenHandl
                     if (valid)
                         result.add(direction);
                 } else if (inventory != null) { //If connected to an inventory
-                    if(canInsertFirm(stack,inventory,direction)) { //If the stack can be inserted into that inventory
+                    if (canInsertFirm(stack, inventory, direction)) { //If the stack can be inserted into that inventory
                         result.add(direction);
                     }
                 }
@@ -187,6 +196,17 @@ public final class PipeEntity extends BlockEntity implements ExtendedScreenHandl
         for (PipeResult pipeResult : list)
             result.add(pipeResult.copy());
         return result;
+    }
+
+    //Basically, can item stack X be inserted into inventory X from Direction D
+    private static boolean canInsertFirm(ItemStack stack, Inventory destination, Direction direction) {
+        return destination != null && InventoryUtils.getAvailableSlots(destination, direction.getOpposite()).anyMatch(i -> {
+            ItemStack slotStack = destination.getStack(i);
+            if (InventoryUtils.canInsert(destination, stack, i, direction.getOpposite()))
+                return slotStack.isEmpty() || (InventoryUtils.canMergeItems(slotStack, stack) && slotStack.getCount() < slotStack.getMaxCount());
+            return false;
+        });
+
     }
 
     /**
@@ -217,7 +237,6 @@ public final class PipeEntity extends BlockEntity implements ExtendedScreenHandl
         return canInsertFirm(stack, InventoryUtils.getInventoryAt(world, finalPos), Objects.requireNonNull(Direction.fromVector(finalPos.subtract(start))));
     }
 
-
     private boolean validateChain(ItemStack stack, BlockPos next, BlockEntity currentEntity, BlockEntity nextEntity, @NotNull Direction direction) {
         assert world != null;
 
@@ -237,17 +256,6 @@ public final class PipeEntity extends BlockEntity implements ExtendedScreenHandl
         }
 
         return false;
-    }
-
-    //Basically, can item stack X be inserted into inventory X from Direction D
-    private static boolean canInsertFirm(ItemStack stack, Inventory destination, Direction direction) {
-        return InventoryUtils.getAvailableSlots(destination, direction.getOpposite()).anyMatch(i -> {
-            ItemStack slotStack = destination.getStack(i);
-            if (InventoryUtils.canInsert(destination, stack, i, direction.getOpposite()))
-                return slotStack.isEmpty() || (InventoryUtils.canMergeItems(slotStack, stack) && slotStack.getCount() < slotStack.getMaxCount());
-            return false;
-        });
-
     }
 
     public FilterInventory getFilter() {
@@ -317,7 +325,8 @@ public final class PipeEntity extends BlockEntity implements ExtendedScreenHandl
         CacheKey key = new CacheKey(stack, start, one);
         if (cache.containsKey(key)) {
             List<PipeResult> val = cache.get(key).value;
-            if (val.stream().allMatch(i -> validate(stack, start, i))) {
+
+            if ((val.stream().allMatch(i -> validate(stack, start, i)))) {
                 lastCacheTick = world.getTime();
                 //Copy the cache value to prevent a reference leak which enables modifying the cache
                 return val.stream().map(PipeResult::copy).collect(Collectors.toList());
@@ -379,9 +388,8 @@ public final class PipeEntity extends BlockEntity implements ExtendedScreenHandl
                         result = results.size() == 0 ? null : results.get(0);
                     }
                     if (result != null) {
-                        items.add(new TimedPipeResult(result, 30));
+                        items.add(new TimedPipeResult(result, ticksPerOperation * 3 / 2));
                         stack.decrement(1);
-                        cooldown = 10;
                         markDirty();
                         if (result.getLength() < Pipe.PIPE_CONFIG.getConfig().maxRenderPipeLength)
                             needsSync = true;
@@ -489,7 +497,7 @@ public final class PipeEntity extends BlockEntity implements ExtendedScreenHandl
                         timed.setStuck(false);
                         pipeEntity.addResultToPending(timed);
                         toRemove.add(timed);
-                        timed.setTime(20);
+                        timed.setTime(pipeEntity.ticksPerOperation);
                     }
                 } else {
                     boolean transferred = transferItem(timed);
@@ -513,7 +521,7 @@ public final class PipeEntity extends BlockEntity implements ExtendedScreenHandl
             timed.setTime(20);
             timed.setStuck(true);
         } else {
-            TimedPipeResult zero = new TimedPipeResult(results.get(0), 20);
+            TimedPipeResult zero = new TimedPipeResult(results.get(0), ticksPerOperation);
             toAdd.add(zero);
             toRemove.add(timed);
         }
@@ -534,8 +542,18 @@ public final class PipeEntity extends BlockEntity implements ExtendedScreenHandl
      * Tick functions are executed every 50 milliseconds
      */
     public void tick() {
-        if (cooldown <= 0)
+        if (!speedSet && world != null) {
+            speedSet = true;
+            ticksPerOperation = world.getBlockState(pos).getBlock() == Pipe.FAST_PIPE ? 8 : 20;
+        }
+
+        if (cooldown > 0)
+            cooldown--;
+
+        if (cooldown <= 0) {
             addToQueue();
+            cooldown = ticksPerOperation / 2;
+        }
 
         tickQueuedItems();
 
@@ -544,12 +562,11 @@ public final class PipeEntity extends BlockEntity implements ExtendedScreenHandl
             needsSync = false;
         }
 
-        if (cooldown > 0)
-            cooldown--;
-
         if (world == null || (world.getTime() - lastCacheTick > 600)) { //30 secs
             cache.clear();
         }
+
+        ticksSinceLastCacheClear++;
     }
 
     /**
@@ -624,6 +641,7 @@ public final class PipeEntity extends BlockEntity implements ExtendedScreenHandl
     @Override
     public void fromClientTag(NbtCompound tag) {
         readQueueFromTag(tag);
+        ticksPerOperation = tag.getInt("ticksPerOperation");
         super.readNbt(tag);
     }
 
@@ -646,6 +664,7 @@ public final class PipeEntity extends BlockEntity implements ExtendedScreenHandl
                 list.add(piped.toTag(new NbtCompound(), true));
 
         tag.put("queue", list);
+        tag.putInt("ticksPerOperation", ticksPerOperation);
 
         return super.writeNbt(tag);
     }
@@ -657,6 +676,47 @@ public final class PipeEntity extends BlockEntity implements ExtendedScreenHandl
         BlockEntityClientSerializable.super.sync();
     }
 
+    @Environment(EnvType.CLIENT)
+    public int getTicksPerOperation() {
+        return ticksPerOperation;
+    }
+
+    /**
+     * Clears the caches of all pipes in the network
+     */
+    public void clearNetworkCache() {
+        //Basically if you try to clear the cache multiple times in 1 tick, i.e. with a large number of blocks being placed at once,
+        //The cache will not have regenerated yet, so it'll still be empty BUT you still recur through the whole network, causing lag.
+        //To solve this, I store how long since the last cache clear as an integer.
+        if (ticksSinceLastCacheClear == 0)
+            return;
+
+        Set<BlockPos> network = new HashSet<>();
+        clearNetworkCacheRipple(network);
+    }
+
+    private void clearNetworkCacheRipple(Set<BlockPos> network) {
+        network.add(pos);
+        this.cache.clear();
+        ticksSinceLastCacheClear = 0;
+        for (Direction direction : Direction.values()) { //For each possible direction
+
+            if ((getSide(direction) == PipeSide.CONNECTED)) { //If this pipe is connected to something
+                BlockPos pos = this.pos.offset(direction);
+
+                if (network.contains(pos))
+                    continue;
+
+                assert world != null;
+                if (world.getBlockEntity(pos) instanceof PipeEntity pipeEntity) { //If connected to another pipe
+                    PipeSide state = world.getBlockState(this.pos.offset(direction)).get(PipeBlock.getProperty(direction.getOpposite()));
+                    if (state == PipeSide.CONNECTED || state == PipeSide.SERVO) {
+                        pipeEntity.clearNetworkCacheRipple(network);
+                    }
+                }
+            }
+        }
+    }
 
     private record CacheKey(@NotNull ItemStack stack, @NotNull BlockPos start, boolean one) {
 
@@ -687,7 +747,12 @@ public final class PipeEntity extends BlockEntity implements ExtendedScreenHandl
 
 
     /**
-     * A cache value stores both
+     * A cache value stores both the time it was calculated and the actual value.
+     * The reason for this is that I arbitrarily told the cache to store up to 10 values to save memory from being polluted
+     * by unused cache values.
+     * This becomes a problem if the pipe is set on round-robin mode and is round-robin-ing to
+     * more than 10 outputs, causing the cache to become useless. The solution to this issue is to
+     * not remove cache values that are too new, thus preserving the integrity of the cache.
      */
     private record CacheResult(long time, List<PipeResult> value) {
 

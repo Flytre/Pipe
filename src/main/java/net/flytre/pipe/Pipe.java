@@ -24,6 +24,7 @@ import net.minecraft.util.registry.Registry;
 public class Pipe implements ModInitializer {
 
     public static final Block ITEM_PIPE = new PipeBlock(FabricBlockSettings.of(Material.METAL).hardness(0.9f));
+    public static final Block FAST_PIPE = new PipeBlock(FabricBlockSettings.of(Material.METAL).hardness(0.6f));
     public static final ItemGroup TAB = FabricItemGroupBuilder.build(
             new Identifier("pipe", "all"),
             () -> new ItemStack(ITEM_PIPE));
@@ -39,7 +40,8 @@ public class Pipe implements ModInitializer {
     @Override
     public void onInitialize() {
         registerBlock(ITEM_PIPE, "item_pipe", IconMaker.STANDARD);
-        ITEM_PIPE_BLOCK_ENTITY = Registry.register(Registry.BLOCK_ENTITY_TYPE, "pipe:item_pipe", FabricBlockEntityTypeBuilder.create(PipeEntity::new, ITEM_PIPE).build(null));
+        registerBlock(FAST_PIPE, "fast_pipe", IconMaker.STANDARD);
+        ITEM_PIPE_BLOCK_ENTITY = Registry.register(Registry.BLOCK_ENTITY_TYPE, "pipe:item_pipe", FabricBlockEntityTypeBuilder.create(PipeEntity::new, ITEM_PIPE, FAST_PIPE).build(null));
         ItemRegistry.init();
         ITEM_PIPE_SCREEN_HANDLER = ScreenHandlerRegistry.registerExtended(new Identifier("pipe", "item_pipe"), PipeHandler::new);
         PacketUtils.registerC2SPacket(PipeModeC2SPacket.class, PipeModeC2SPacket::new);
