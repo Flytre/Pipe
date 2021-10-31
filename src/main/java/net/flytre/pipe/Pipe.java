@@ -8,6 +8,7 @@ import net.fabricmc.fabric.api.screenhandler.v1.ScreenHandlerRegistry;
 import net.flytre.flytre_lib.api.base.util.PacketUtils;
 import net.flytre.flytre_lib.api.config.ConfigHandler;
 import net.flytre.flytre_lib.api.config.ConfigRegistry;
+import net.flytre.flytre_lib.impl.storage.init.StorageModInitializer;
 import net.flytre.pipe.network.PipeModeC2SPacket;
 import net.flytre.pipe.pipe.PipeHandler;
 import net.flytre.pipe.pipe.PipeBlock;

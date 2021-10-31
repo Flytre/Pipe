@@ -8,6 +8,7 @@ import net.flytre.flytre_lib.api.storage.inventory.filter.packet.BlockNbtMatchC2
 import net.flytre.pipe.network.PipeModeC2SPacket;
 import net.flytre.pipe.pipe.PipeHandler;
 import net.minecraft.client.render.GameRenderer;
+import net.minecraft.client.util.ModelIdentifier;
 import net.minecraft.client.util.math.MatrixStack;
 import net.minecraft.entity.player.PlayerInventory;
 import net.minecraft.text.Text;
@@ -33,6 +34,7 @@ public class PipeScreen extends FilteredScreen<PipeHandler> {
         addButton(handler.getRoundRobinMode(), 1, PIPE_MODE_BUTTON, PipeModeC2SPacket::new, handler::getPos, new TranslatableText("block.pipe.item_pipe.closest"), new TranslatableText("block.pipe.item_pipe.round_robin"));
         addButton(handler.getModMatch(), 2, MOD_BUTTON, BlockModMatchC2SPacket::new, handler::getPos, new TranslatableText("block.pipe.item_pipe.mod_match.false"), new TranslatableText("block.pipe.item_pipe.mod_match.true"));
         addButton(handler.getNbtMatch(), 3, NBT_BUTTON, BlockNbtMatchC2SPacket::new, handler::getPos, new TranslatableText("block.pipe.item_pipe.nbt_match.false"), new TranslatableText("block.pipe.item_pipe.nbt_match.true"));
+
     }
 
     @Override

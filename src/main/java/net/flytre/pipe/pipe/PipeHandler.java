@@ -44,7 +44,12 @@ public class PipeHandler extends ScreenHandler {
         int l;
         for (m = 0; m < 3; ++m) {
             for (l = 0; l < 3; ++l) {
-                this.addSlot(new Slot(inv, l + m * 3, 62 + l * 18, 17 + m * 18));
+                this.addSlot(new Slot(inv, l + m * 3, 62 + l * 18, 17 + m * 18) {
+                    @Override
+                    public void markDirty() {
+                        entity.clearNetworkCache();
+                    }
+                });
             }
         }
 

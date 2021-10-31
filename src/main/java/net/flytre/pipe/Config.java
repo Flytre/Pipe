@@ -21,6 +21,6 @@ public class Config {
     public Config() {
         renderItems = true;
         maxItemRenderDistance = 24;
-        maxRenderPipeLength = 50;
+        maxRenderPipeLength = 64;
     }
 }

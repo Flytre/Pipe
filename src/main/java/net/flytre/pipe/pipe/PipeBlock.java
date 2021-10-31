@@ -1,7 +1,6 @@
 package net.flytre.pipe.pipe;
 
 import net.flytre.flytre_lib.api.base.compat.wrench.WrenchItem;
-import net.flytre.flytre_lib.api.base.util.InventoryUtils;
 import net.flytre.flytre_lib.api.storage.connectable.ItemPipeConnectable;
 import net.flytre.pipe.ItemRegistry;
 import net.flytre.pipe.Pipe;
@@ -31,8 +30,6 @@ import net.minecraft.world.BlockView;
 import net.minecraft.world.World;
 import net.minecraft.world.WorldAccess;
 import org.jetbrains.annotations.Nullable;
-
-import java.util.Set;
 
 /**
  * Blocks represent each type of block added to Minecraft. There is only ONE block object for each type of block, i.e. one
@@ -254,10 +251,8 @@ public class PipeBlock extends BlockWithEntity implements ItemPipeConnectable {
                     ItemScatterer.spawn(world, pos.getX(), pos.getY(), pos.getZ(), new ItemStack(ItemRegistry.SERVO));
             if (!world.isClient) {
                 BlockEntity entity = world.getBlockEntity(pos);
-                if (entity instanceof PipeEntity) {
-                    PipeEntity pipeEntity = (PipeEntity) entity;
-                    Set<ItemStack> stacks = pipeEntity.getQueuedStacks();
-                    for (ItemStack stack : stacks) {
+                if (entity instanceof PipeEntity pipeEntity) {
+                    for (ItemStack stack : pipeEntity.getQueuedStacks()) {
                         ItemScatterer.spawn(world, pos.getX(), pos.getY(), pos.getZ(), stack);
                     }
                 }
