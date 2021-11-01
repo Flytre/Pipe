@@ -88,6 +88,14 @@ public final class PipeEntity extends BlockEntity implements ExtendedScreenHandl
             return time - entryTime > 500 && size() > 10;
         }
     };
+
+    /**
+     * The network stores the locations of all pipes in the network; The same set is shared across all pipes in the network so it must
+     * not be altered inappropriately.
+     */
+    public transient Set<BlockPos> network = new HashSet<>();
+
+
     /**
      * Stores a map of each side of the pipe (indicated by direction) and whether that side is "wrenched"
      * Sides that are "wrenches" artificially block incoming connections, so that pipes can be placed
@@ -185,7 +193,7 @@ public final class PipeEntity extends BlockEntity implements ExtendedScreenHandl
      * @return The collection of potential directions the item could go next
      * <p>
      */
-    public static Collection<Direction> transferableDirections(BlockPos startingPos, World world, ItemStack stack, boolean checkInsertion) {
+    public static Collection<Direction> transferableDirections(BlockPos startingPos, World world, ItemStack stack, boolean checkInsertion, boolean stuck) {
         Set<Direction> result = new HashSet<>();
 
         if (world == null)
@@ -209,7 +217,7 @@ public final class PipeEntity extends BlockEntity implements ExtendedScreenHandl
                     if (valid)
                         result.add(direction);
                 } else if (inventory != null) { //If connected to an inventory
-                    if (!checkInsertion || canInsertFirm(stack, inventory, direction)) { //If the stack can be inserted into that inventory
+                    if (!checkInsertion || canInsertFirm(world, me.network, stack, inventory, direction, stuck)) { //If the stack can be inserted into that inventory
                         result.add(direction);
                     }
                 }
@@ -223,16 +231,77 @@ public final class PipeEntity extends BlockEntity implements ExtendedScreenHandl
      * @param stack       the item stack to check for
      * @param destination the destination inventory
      * @param direction   the direction to insert from
-     * @return can item stack X be inserted into inventory Y from Direction D?
+     * @return Checks if item stack X be inserted into inventory Y from Direction D. However, it also takes into consideration all other items flowing into the inventory
+     * from the network, and if those being inserted already would make it impossible for item stack X to be inserted, MAY return false.
      */
-    private static boolean canInsertFirm(ItemStack stack, Inventory destination, Direction direction) {
-        return destination != null && InventoryUtils.getAvailableSlots(destination, direction.getOpposite()).anyMatch(i -> {
-            ItemStack slotStack = destination.getStack(i);
-            if (InventoryUtils.canInsert(destination, stack, i, direction.getOpposite()))
-                return slotStack.isEmpty() || (InventoryUtils.canMergeItems(slotStack, stack) && slotStack.getCount() < slotStack.getMaxCount());
-            return false;
-        });
+    private static boolean canInsertFirm(World world, Set<BlockPos> network, ItemStack stack, Inventory destination, Direction direction, boolean isStuck) {
 
+
+        //Works because you can only extract stacks of 1 item at a time.
+        var flows = getFlows(network, world);
+        var wrapped = new WrappedItemStack(stack);
+
+
+        //basically, if multiple items are stuck they will block EACH OTHER from finding a valid container; using isStuck to manually override that behavior prevents this.
+        int flowCt = isStuck ? 0 : (flows.containsKey(wrapped) ? (int) flows.get(wrapped).stream().filter(k -> InventoryUtils.getInventoryAt(world, k.getPipeResult().getDestination()) == destination).count() : 0);
+
+
+        //if there are no items of that type flowing through the pipe return true
+        if (flowCt == 0) {
+            return destination != null && InventoryUtils.getAvailableSlots(destination, direction.getOpposite()).anyMatch(i -> {
+                ItemStack slotStack = destination.getStack(i);
+                if (InventoryUtils.canInsert(destination, stack, i, direction.getOpposite()))
+                    return slotStack.isEmpty() || (InventoryUtils.canMergeItems(slotStack, stack) && slotStack.getCount() < slotStack.getMaxCount());
+                return false;
+            });
+        } else {
+            //basically, estimate how many items are going into the container and if it's going to be full, don't send the item
+            if (destination == null)
+                return false;
+            int[] slots = InventoryUtils.getAvailableSlots(destination, direction.getOpposite()).toArray();
+            ItemStack copy = stack.copy();
+            copy.setCount(flowCt + 1);
+            for (int slot : slots) {
+                ItemStack slotStack = destination.getStack(slot);
+
+                if (slotStack.getCount() >= slotStack.getMaxCount())
+                    continue;
+
+                if (InventoryUtils.canInsert(destination, copy, slot, direction.getOpposite())) {
+                    if (slotStack.isEmpty()) {
+                        if (copy.getCount() < 64)
+                            return true;
+                        else
+                            copy.decrement(64);
+                    } else if (InventoryUtils.canMergeItems(slotStack, copy)) {
+                        int target = slotStack.getMaxCount() - slotStack.getCount();
+                        if (copy.getCount() <= target)
+                            return true;
+                        else
+                            copy.decrement(target);
+                    }
+                }
+            }
+            return false;
+        }
+
+    }
+
+    //get all items flowing thru a network
+    public static Map<WrappedItemStack, Set<TimedPipeResult>> getFlows(Set<BlockPos> network, World world) {
+        Map<WrappedItemStack, Set<TimedPipeResult>> flows = new HashMap<>();
+
+        assert world != null;
+        for (BlockPos pos : network) {
+            if (world.getBlockEntity(pos) instanceof PipeEntity pipe) {
+                for (TimedPipeResult result : pipe.getQueuedItems()) {
+                    WrappedItemStack stack = new WrappedItemStack(result.getPipeResult().getStack());
+                    flows.putIfAbsent(stack, new HashSet<>());
+                    flows.get(stack).add(result);
+                }
+            }
+        }
+        return flows;
     }
 
     /**
@@ -244,6 +313,9 @@ public final class PipeEntity extends BlockEntity implements ExtendedScreenHandl
         assert world != null;
         Iterator<BlockPos> iterator = result.getPath().iterator();
         BlockEntity startEntity = world.getBlockEntity(start);
+
+        if (startEntity == null)
+            return false;
 
         while (iterator.hasNext()) {
             BlockPos next = iterator.next();
@@ -260,7 +332,8 @@ public final class PipeEntity extends BlockEntity implements ExtendedScreenHandl
         }
 
         BlockPos finalPos = result.getDestination();
-        return canInsertFirm(stack, InventoryUtils.getInventoryAt(world, finalPos), Objects.requireNonNull(Direction.fromVector(finalPos.subtract(start))));
+        assert startEntity != null;
+        return canInsertFirm(((PipeEntity) startEntity).world, ((PipeEntity) startEntity).network, stack, InventoryUtils.getInventoryAt(world, finalPos), Objects.requireNonNull(Direction.fromVector(finalPos.subtract(start))), false);
     }
 
     private boolean validateChain(ItemStack stack, BlockPos next, BlockEntity currentEntity, BlockEntity nextEntity, @NotNull Direction direction) {
@@ -291,7 +364,7 @@ public final class PipeEntity extends BlockEntity implements ExtendedScreenHandl
      * robin mode, it finds all possible (including ones where the item cannot be inserted due to the state of the inventory) locations and returns them in order sorted from nearest to furthest.
      * Performs a BFS search and returns the first valid location it finds to dump the items into
      */
-    private List<PipeResult> internalFindDestinations(ItemStack stack, BlockPos start, boolean one) {
+    private List<PipeResult> internalFindDestinations(ItemStack stack, BlockPos start, boolean one, boolean stuck) {
 
         Direction animate = null;
         for (Direction dir : Direction.values()) {
@@ -325,7 +398,7 @@ public final class PipeEntity extends BlockEntity implements ExtendedScreenHandl
             }
 
             if (world.getBlockEntity(current) instanceof PipeEntity) {
-                Collection<Direction> neighbors = PipeEntity.transferableDirections(current, world, stack, one);
+                Collection<Direction> neighbors = PipeEntity.transferableDirections(current, world, stack, one, stuck);
                 for (Direction d : neighbors) {
                     if (!visited.contains(current.offset(d)) || InventoryUtils.getInventoryAt(world, current.offset(d)) != null) {
                         LinkedList<BlockPos> newPath = new LinkedList<>(path);
@@ -345,7 +418,7 @@ public final class PipeEntity extends BlockEntity implements ExtendedScreenHandl
      * <p>
      * Internally, it uses a cache based approach although this is subject to change.
      */
-    public List<PipeResult> findDestinations(ItemStack stack, BlockPos start, boolean one) {
+    public List<PipeResult> findDestinations(ItemStack stack, BlockPos start, boolean one, boolean stuck) {
         assert world != null;
         CacheKey key = new CacheKey(stack, start, one);
         if (cache.containsKey(key)) {
@@ -359,7 +432,7 @@ public final class PipeEntity extends BlockEntity implements ExtendedScreenHandl
 
             if (!clear && !one) {
                 lastCacheTick = world.getTime();
-                return val.stream().filter(i -> canInsertFirm(stack, InventoryUtils.getInventoryAt(world, i.getDestination()), i.getDirection().getOpposite())).map(PipeResult::copy).collect(Collectors.toList());
+                return val.stream().filter(i -> canInsertFirm(world, network, stack, InventoryUtils.getInventoryAt(world, i.getDestination()), i.getDirection().getOpposite(), stuck)).map(PipeResult::copy).collect(Collectors.toList());
             } else if (!clear && (val.stream().allMatch(i -> validate(stack, start, i)))) {
                 lastCacheTick = world.getTime();
                 //Copy the cache value to prevent a reference leak which enables modifying the cache
@@ -369,7 +442,7 @@ public final class PipeEntity extends BlockEntity implements ExtendedScreenHandl
             }
         }
 
-        List<PipeResult> toCache = internalFindDestinations(stack, start, one);
+        List<PipeResult> toCache = internalFindDestinations(stack, start, one, stuck);
         cache.put(key, new CacheResult(world.getTime(), toCache));
         lastCacheTick = world.getTime();
         //Copy the cache value to prevent a reference leak which enables modifying the cache
@@ -406,14 +479,14 @@ public final class PipeEntity extends BlockEntity implements ExtendedScreenHandl
 
                     PipeResult result;
                     if (isRoundRobinMode()) {
-                        List<PipeResult> results = findDestinations(one, this.pos.offset(d), false);
+                        List<PipeResult> results = findDestinations(one, this.pos.offset(d), false, false);
                         if (results.size() <= roundRobinIndex) {
                             roundRobinIndex = 0;
                         }
 
                         result = roundRobinIndex < results.size() ? results.get(roundRobinIndex++) : null;
                     } else {
-                        List<PipeResult> results = findDestinations(one, this.pos.offset(d), true);
+                        List<PipeResult> results = findDestinations(one, this.pos.offset(d), true, false);
                         result = results.size() == 0 ? null : results.get(0);
                     }
                     if (result != null) {
@@ -555,12 +628,12 @@ public final class PipeEntity extends BlockEntity implements ExtendedScreenHandl
      * to the next pipe.
      */
     private void tickHelper(Set<TimedPipeResult> toRemove, Set<TimedPipeResult> toAdd, TimedPipeResult timed) {
-        List<PipeResult> results = findDestinations(timed.getPipeResult().getStack(), getPos(), true);
+        List<PipeResult> results = findDestinations(timed.getPipeResult().getStack(), getPos(), true, false);
         if (results.size() == 0) {
             timed.setTime(20);
             timed.setStuck(true);
         } else {
-            TimedPipeResult zero = new TimedPipeResult(results.get(0), ticksPerOperation);
+            TimedPipeResult zero = new TimedPipeResult(results.get(0), ticksPerOperation, false);
             toAdd.add(zero);
             toRemove.add(timed);
         }
@@ -581,6 +654,11 @@ public final class PipeEntity extends BlockEntity implements ExtendedScreenHandl
      * Tick functions are executed every 50 milliseconds, so there are 20 ticks per second
      */
     public void tick() {
+
+        if (network.isEmpty()) { //basically, artifically construct the network of this pipe if its empty;
+            clearNetworkCache();
+        }
+
         if (!speedSet && world != null) {
             speedSet = true;
             ticksPerOperation = world.getBlockState(pos).getBlock() == Pipe.FAST_PIPE ? 8 : 20;
@@ -589,12 +667,13 @@ public final class PipeEntity extends BlockEntity implements ExtendedScreenHandl
         if (cooldown > 0)
             cooldown--;
 
+        tickQueuedItems();
+
         if (cooldown <= 0) {
             addToQueue();
             cooldown = ticksPerOperation / 2;
         }
 
-        tickQueuedItems();
 
         if (needsSync) {
             sync();
@@ -741,6 +820,7 @@ public final class PipeEntity extends BlockEntity implements ExtendedScreenHandl
     private void clearNetworkCacheRipple(Set<BlockPos> network) {
         network.add(pos);
         this.cache.clear();
+        this.network = network; //note that all pipes in a network SHARE the same network set AND it's mutable. Dangerous, huh?
         ticksSinceLastCacheClear = 0;
         for (Direction direction : Direction.values()) { //For each possible direction
 
@@ -835,6 +915,32 @@ public final class PipeEntity extends BlockEntity implements ExtendedScreenHandl
             int result = direction != null ? direction.hashCode() : 0;
             result = 31 * result + (pos != null ? pos.hashCode() : 0);
             return result;
+        }
+    }
+
+    /**
+     * the WrappedItemStack class is used to give ItemStacks a hashCode and equals
+     */
+    private record WrappedItemStack(ItemStack stack) {
+        @Override
+        public boolean equals(Object wrapped) {
+            if (this == wrapped)
+                return true;
+
+            if (wrapped == null || getClass() != wrapped.getClass())
+                return false;
+
+            return ItemStack.areEqual(this.stack, ((WrappedItemStack) wrapped).stack);
+        }
+
+        @Override
+        public int hashCode() {
+            if (stack == null)
+                return 0;
+
+            return Registry.ITEM.getRawId(stack.getItem()) +
+                    stack.getCount() * 31 +
+                    (stack.getNbt() != null ? stack.getNbt().hashCode() * 31 * 31 : 0);
         }
     }
 }
