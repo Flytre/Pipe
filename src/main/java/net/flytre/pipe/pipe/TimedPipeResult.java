@@ -8,7 +8,7 @@ import net.minecraft.util.math.Direction;
 import java.util.LinkedList;
 
 public class TimedPipeResult {
-    public static TimedPipeResult DEFAULT;
+    public static final TimedPipeResult DEFAULT;
 
     static {
         PipeResult result = new PipeResult(BlockPos.ORIGIN, new LinkedList<>(), ItemStack.EMPTY, Direction.NORTH, Direction.NORTH);

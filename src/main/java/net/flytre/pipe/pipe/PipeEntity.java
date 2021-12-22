@@ -2,7 +2,6 @@ package net.flytre.pipe.pipe;
 
 import net.fabricmc.api.EnvType;
 import net.fabricmc.api.Environment;
-import net.fabricmc.fabric.api.block.entity.BlockEntityClientSerializable;
 import net.fabricmc.fabric.api.screenhandler.v1.ExtendedScreenHandlerFactory;
 import net.flytre.flytre_lib.api.base.util.Formatter;
 import net.flytre.flytre_lib.api.base.util.InventoryUtils;
@@ -11,6 +10,7 @@ import net.flytre.flytre_lib.api.storage.inventory.filter.Filtered;
 import net.flytre.flytre_lib.api.storage.inventory.filter.packet.FilterEventHandler;
 import net.flytre.pipe.Config;
 import net.flytre.pipe.Pipe;
+import net.minecraft.block.Block;
 import net.minecraft.block.BlockState;
 import net.minecraft.block.entity.BlockEntity;
 import net.minecraft.entity.player.PlayerEntity;
@@ -19,7 +19,10 @@ import net.minecraft.inventory.Inventory;
 import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NbtCompound;
 import net.minecraft.nbt.NbtList;
+import net.minecraft.network.Packet;
 import net.minecraft.network.PacketByteBuf;
+import net.minecraft.network.listener.ClientPlayPacketListener;
+import net.minecraft.network.packet.s2c.play.BlockEntityUpdateS2CPacket;
 import net.minecraft.screen.ScreenHandler;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.text.Text;
@@ -57,7 +60,7 @@ import java.util.stream.Collectors;
  * <p>
  * That all being said, a pipe entity is a block entity that stores data about a pipe
  */
-public final class PipeEntity extends BlockEntity implements ExtendedScreenHandlerFactory, BlockEntityClientSerializable, Filtered, FilterEventHandler {
+public final class PipeEntity extends BlockEntity implements ExtendedScreenHandlerFactory, Filtered, FilterEventHandler {
 
 
     /**
@@ -522,7 +525,8 @@ public final class PipeEntity extends BlockEntity implements ExtendedScreenHandl
     /**
      * Serialize data to be saved for when the area the pipe is in is unloaded.
      */
-    public NbtCompound writeNbt(NbtCompound tag) {
+    @Override
+    protected void writeNbt(NbtCompound tag) {
         tag.putInt("wrenched", Formatter.mapToInt(wrenched));
         tag.putInt("rri", this.roundRobinIndex);
         tag.putBoolean("rrm", this.roundRobinMode);
@@ -532,7 +536,6 @@ public final class PipeEntity extends BlockEntity implements ExtendedScreenHandl
             list.add(piped.toTag(new NbtCompound(), false));
         tag.put("queue", list);
         tag.put("filter", filter.writeNbt());
-        return super.writeNbt(tag);
     }
 
     public boolean isRoundRobinMode() {
@@ -548,14 +551,27 @@ public final class PipeEntity extends BlockEntity implements ExtendedScreenHandl
      */
     @Override
     public void readNbt(NbtCompound tag) {
-        this.cooldown = tag.getInt("cooldown");
-        this.roundRobinIndex = tag.getInt("rri");
-        this.roundRobinMode = tag.getBoolean("rrm");
-        this.wrenched = Formatter.intToMap(tag.getInt("wrenched"));
+        if (tag.contains("cooldown"))
+            this.cooldown = tag.getInt("cooldown");
+
+        if (tag.contains("rri"))
+            this.roundRobinIndex = tag.getInt("rri");
+
+        if (tag.contains("rrm"))
+            this.roundRobinMode = tag.getBoolean("rrm");
+
+        if (tag.contains("wrenched"))
+            this.wrenched = Formatter.intToMap(tag.getInt("wrenched"));
         readQueueFromTag(tag);
 
-        NbtCompound filter = tag.getCompound("filter");
-        this.filter = FilterInventory.readNbt(filter, 1);
+        if (tag.contains("filter")) {
+            NbtCompound filter = tag.getCompound("filter");
+            this.filter = FilterInventory.readNbt(filter, 1);
+        }
+
+        if(tag.contains("ticksPerOperation"))
+            ticksPerOperation = tag.getInt("ticksPerOperation");
+
         super.readNbt(tag);
     }
 
@@ -761,10 +777,8 @@ public final class PipeEntity extends BlockEntity implements ExtendedScreenHandl
     }
 
     @Override
-    public void fromClientTag(NbtCompound tag) {
-        readQueueFromTag(tag);
-        ticksPerOperation = tag.getInt("ticksPerOperation");
-        super.readNbt(tag);
+    public @NotNull Packet<ClientPlayPacketListener> toUpdatePacket() {
+        return BlockEntityUpdateS2CPacket.create(this, (i -> ((PipeEntity) i).toClientTag()));
     }
 
     private void readQueueFromTag(NbtCompound tag) {
@@ -776,9 +790,8 @@ public final class PipeEntity extends BlockEntity implements ExtendedScreenHandl
         }
     }
 
-    @Override
-    public NbtCompound toClientTag(NbtCompound tag) {
-
+    public NbtCompound toClientTag() {
+        NbtCompound tag = new NbtCompound();
         Config cfg = Pipe.PIPE_CONFIG.getConfig();
         NbtList list = new NbtList();
         for (TimedPipeResult piped : items)
@@ -787,15 +800,14 @@ public final class PipeEntity extends BlockEntity implements ExtendedScreenHandl
 
         tag.put("queue", list);
         tag.putInt("ticksPerOperation", ticksPerOperation);
-
-        return super.writeNbt(tag);
+        super.writeNbt(tag);
+        return tag;
     }
 
-    @Override
-    public void sync() {
+    private void sync() {
         if (!Pipe.PIPE_CONFIG.getConfig().renderItems)
             return;
-        BlockEntityClientSerializable.super.sync();
+        Objects.requireNonNull(getWorld()).updateListeners(this.getPos(), this.getCachedState(), this.getCachedState(), Block.NOTIFY_ALL);
     }
 
     @Environment(EnvType.CLIENT)

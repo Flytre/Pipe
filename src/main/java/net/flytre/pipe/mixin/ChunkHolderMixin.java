@@ -3,7 +3,8 @@ package net.flytre.pipe.mixin;
 import net.flytre.pipe.Pipe;
 import net.flytre.pipe.pipe.PipeEntity;
 import net.minecraft.block.entity.BlockEntity;
-import net.minecraft.network.packet.s2c.play.BlockEntityUpdateS2CPacket;
+import net.minecraft.network.Packet;
+import net.minecraft.network.listener.ClientPlayPacketListener;
 import net.minecraft.server.world.ChunkHolder;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.ChunkPos;
@@ -28,17 +29,14 @@ public class ChunkHolderMixin {
     @Inject(method = "sendBlockEntityUpdatePacket", at = @At("HEAD"), cancellable = true)
     public void pipe$customPipeUpdates(World world, BlockPos pos, CallbackInfo ci) {
         BlockEntity blockEntity = world.getBlockEntity(pos);
-        if (!(blockEntity instanceof PipeEntity))
+        if (!(blockEntity instanceof PipeEntity pipeEntity))
             return;
         ci.cancel();
-        PipeEntity pipeEntity = (PipeEntity) blockEntity;
-        BlockEntityUpdateS2CPacket blockEntityUpdateS2CPacket = pipeEntity.toUpdatePacket();
-        if (blockEntityUpdateS2CPacket != null) {
-            this.pipe$sendPacketToNearPlayers(pos, blockEntityUpdateS2CPacket);
-        }
+        Packet<ClientPlayPacketListener> updatePacket = pipeEntity.toUpdatePacket();
+        this.pipe$sendPacketToNearPlayers(pos, updatePacket);
     }
 
-    private void pipe$sendPacketToNearPlayers(BlockPos pos, BlockEntityUpdateS2CPacket packet) {
+    private void pipe$sendPacketToNearPlayers(BlockPos pos, Packet<ClientPlayPacketListener> packet) {
         int distance = Pipe.PIPE_CONFIG.getConfig().maxItemRenderDistance;
         this.playersWatchingChunkProvider.getPlayersWatchingChunk(this.pos, false).forEach((serverPlayerEntity) -> {
             if (serverPlayerEntity.getBlockPos().getSquaredDistance(pos) < distance * distance) {

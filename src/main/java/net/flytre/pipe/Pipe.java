@@ -8,11 +8,10 @@ import net.fabricmc.fabric.api.screenhandler.v1.ScreenHandlerRegistry;
 import net.flytre.flytre_lib.api.base.util.PacketUtils;
 import net.flytre.flytre_lib.api.config.ConfigHandler;
 import net.flytre.flytre_lib.api.config.ConfigRegistry;
-import net.flytre.flytre_lib.impl.storage.init.StorageModInitializer;
 import net.flytre.pipe.network.PipeModeC2SPacket;
-import net.flytre.pipe.pipe.PipeHandler;
 import net.flytre.pipe.pipe.PipeBlock;
 import net.flytre.pipe.pipe.PipeEntity;
+import net.flytre.pipe.pipe.PipeHandler;
 import net.minecraft.block.Block;
 import net.minecraft.block.Material;
 import net.minecraft.block.entity.BlockEntityType;
@@ -31,7 +30,7 @@ public class Pipe implements ModInitializer {
             () -> new ItemStack(ITEM_PIPE));
     public static BlockEntityType<PipeEntity> ITEM_PIPE_BLOCK_ENTITY;
     public static ScreenHandlerType<PipeHandler> ITEM_PIPE_SCREEN_HANDLER;
-    public static ConfigHandler<Config> PIPE_CONFIG = new ConfigHandler<>(new Config(), "pipe");
+    public static final ConfigHandler<Config> PIPE_CONFIG = new ConfigHandler<>(new Config(), "pipe");
 
     public static <T extends Block> void registerBlock(T block, String id, IconMaker<T> creator) {
         Registry.register(Registry.BLOCK, new Identifier("pipe", id), block);

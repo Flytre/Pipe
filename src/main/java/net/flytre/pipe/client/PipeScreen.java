@@ -8,7 +8,6 @@ import net.flytre.flytre_lib.api.storage.inventory.filter.packet.BlockNbtMatchC2
 import net.flytre.pipe.network.PipeModeC2SPacket;
 import net.flytre.pipe.pipe.PipeHandler;
 import net.minecraft.client.render.GameRenderer;
-import net.minecraft.client.util.ModelIdentifier;
 import net.minecraft.client.util.math.MatrixStack;
 import net.minecraft.entity.player.PlayerInventory;
 import net.minecraft.text.Text;
