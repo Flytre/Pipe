@@ -495,6 +495,7 @@ public final class PipeEntity extends BlockEntity implements ExtendedScreenHandl
                     if (result != null) {
                         items.add(new TimedPipeResult(result, ticksPerOperation * 3 / 2));
                         stack.decrement(1);
+                        out.markDirty();
                         markDirty();
                         if (result.getLength() < Pipe.PIPE_CONFIG.getConfig().maxRenderPipeLength)
                             needsSync = true;
