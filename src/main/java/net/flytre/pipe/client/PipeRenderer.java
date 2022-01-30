@@ -11,6 +11,7 @@ import net.minecraft.client.render.block.entity.BlockEntityRenderer;
 import net.minecraft.client.render.block.entity.BlockEntityRendererFactory;
 import net.minecraft.client.render.model.json.ModelTransformation;
 import net.minecraft.client.util.math.MatrixStack;
+import net.minecraft.item.BlockItem;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Vec3f;
 
@@ -65,7 +66,8 @@ public class PipeRenderer implements BlockEntityRenderer<PipeEntity> {
             }
             if (!timed.isStuck())
                 matrices.translate(dx, dy, dz);
-            matrices.translate(0, -0.2, 0);
+
+            matrices.translate(0, -0.125, 0);
 
             if (timed.getPipeResult().getAnim() != null && mult < 0f) {
                 float scale = 0.5f + (mult + (float) (ticksPerOperation / 2)) / (float) (ticksPerOperation / 2) * 0.3f;
