@@ -1,10 +1,19 @@
 pluginManagement {
     repositories {
-        jcenter()
+        gradlePluginPortal()
         maven {
             name = 'Fabric'
             url = 'https://maven.fabricmc.net/'
         }
-        gradlePluginPortal()
+        maven {
+            name = 'Sponge Snapshots'
+            url = 'https://repo.spongepowered.org/repository/maven-public/'
+        }
+
+        maven { url "https://maven.architectury.dev/" }
+        maven { url "https://files.minecraftforge.net/maven/" }
     }
 }
+
+rootProject.name = "Pipe"
+include('Common', 'Fabric', 'Forge')
