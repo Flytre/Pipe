@@ -1,0 +1,17 @@
+{
+  "required": true,
+  "minVersion": "0.8",
+  "package": "net.flytre.pipe.mixin",
+  "compatibilityLevel": "JAVA_17",
+  "mixins": [
+    "ChunkHolderMixin"
+  ],
+  "client": [
+  ],
+  "server": [],
+  "injectors": {
+    "defaultRequire": 1
+  },
+  "refmap": "${mod_id}-${minecraft_version}-${mod_version}-${loader}-refmap.json"
+}
+  

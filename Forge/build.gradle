@@ -1,0 +1,220 @@
+import net.fabricmc.loom.task.RemapJarTask
+
+plugins {
+    id 'dev.architectury.loom' version '0.11.0-SNAPSHOT'
+    id 'net.darkhax.curseforgegradle' version '1.0.7'
+    id 'net.darkhax.tweedle' version '1.0.5'
+    id 'idea'
+}
+
+apply from: '../gradle/property_helper.gradle'
+
+archivesBaseName = "${mod_id}-${minecraft_version}-${mod_version}-forge"
+
+dependencies {
+    minecraft "com.mojang:minecraft:${minecraft_version}"
+    mappings "net.fabricmc:yarn:${yarn_mappings}:v2"
+    forge "net.minecraftforge:forge:${minecraft_version}-${forge_version}"
+
+    modImplementation("net.flytre.flytre_lib:flytre_lib-${minecraft_version}-forge:${lib_version}") {
+        exclude group: "org.jetbrains", module: "annotations"
+    }
+}
+
+moduleDependencies(project, [
+        "Common"
+])
+
+loom {
+    runs {
+        client {
+            client()
+            setConfigName("Forge Client")
+            ideConfigGenerated(true)
+            runDir("run")
+        }
+        server {
+            server()
+            setConfigName("Forge Server")
+            ideConfigGenerated(true)
+            runDir("run")
+        }
+    }
+
+    forge {
+        mixinConfig("${mod_id}.mixins.json", "${mod_id}-forge.mixins.json")
+    }
+}
+
+processResources {
+
+    from project(":Common").sourceSets.main.resources
+
+    def buildProps = project.properties.clone()
+    filesMatching(['META-INF/mods.toml', 'pack.mcmeta', "${mod_id}.mixins.json".toString()]) {
+
+        expand buildProps
+    }
+
+}
+
+tasks.withType(JavaCompile) {
+    source(project(":Common").sourceSets.main.allSource)
+}
+
+// -- MAVEN PUBLISHING --
+project.publishing {
+
+    publications {
+
+        mavenJava(MavenPublication) {
+
+            artifactId project.archivesBaseName
+
+            // Base mod archive.
+            artifact(remapJar) {
+
+                builtBy remapJar
+            }
+
+            // Adds the soruces as an artifact.
+            artifact(sourcesJar) {
+
+                builtBy remapSourcesJar
+            }
+        }
+    }
+
+    repositories {
+
+        maven {
+
+            // Sets maven credentials if they are provided. This is generally
+            // only used for external/remote uploads.
+            if (project.hasProperty('mavenUsername') && project.hasProperty('mavenPassword')) {
+
+                credentials {
+
+                    username findProperty('mavenUsername')
+                    password findProperty('mavenPassword')
+                }
+            }
+
+            url getDefaultString('mavenURL', 'undefined', true)
+        }
+    }
+}
+
+
+def auth = new Properties()
+try {
+    file("../auth.properties").withInputStream { auth.load(it) }
+} catch (ignored) {
+    file("../auth_fallback.properties").withInputStream { auth.load(it) }
+}
+// CurseForge Publishing
+task publishCurseForge(type: net.darkhax.curseforgegradle.TaskPublishCurseForge) {
+
+    apiToken = auth.getProperty("curseforge_token")
+
+    def mainFile = upload(curse_project, file("${project.buildDir}/libs/${archivesBaseName}.jar"))
+    mainFile.changelogType = 'markdown'
+    mainFile.changelog = project.ext.mod_changelog
+    mainFile.addJavaVersion('Java 17')
+    mainFile.addJavaVersion('Java 18')
+    mainFile.releaseType = 'beta'
+    mainFile.addModLoader('Forge')
+    mainFile.addRelation("lib","requiredDependency")
+
+    def versions = supported_versions.split(",")
+    versions.each(v -> {
+        mainFile.addGameVersion(v)
+    })
+
+    doLast {
+
+        if (project.hasProperty('mod_homepage')) {
+
+            project.ext.curse_file_url = "${mod_homepage}/files/${mainFile.curseFileId}"
+        }
+    }
+}
+
+task buildObfuscatedJarForge() {
+
+    task prepareForObfuscation(type: Exec) {
+        workingDir '../proguard'
+        String rootDir = file(".").toPath().toString()
+        String buildDir = file("build/libs")
+        commandLine 'python', "prepare_obfuscation.py", "${rootDir}", "${buildDir}", "${archivesBaseName}", "${mod_id}"
+    }
+
+
+    task obfuscateStep1(type: proguard.gradle.ProGuardTask) {
+        outputs.upToDateWhen { false }
+        doFirst {
+            injars("build/libs/${archivesBaseName}-mod.jar")
+            outjars("build/libs/${archivesBaseName}-dev-obfus.jar")
+
+            configurations.runtimeClasspath.each {
+                libraryjars(it.path + "")
+            }
+
+            configuration("../proguard/proguard.cfg")
+            repackageclasses("net.flytre.${mod_id}")
+            printmapping("../proguard/mappings/${archivesBaseName}.mappings")
+        }
+    }
+
+    task obfuscateStep2(type: proguard.gradle.ProGuardTask) {
+        outputs.upToDateWhen { false }
+        doFirst {
+            injars("build/libs/${archivesBaseName}-dev-obfus.jar")
+            outjars("build/libs/${archivesBaseName}-dev-obfus2.jar")
+
+            configurations.runtimeClasspath.each {
+                libraryjars(it.path + "")
+            }
+
+            configuration("../proguard/proguard2.cfg")
+            repackageclasses("net.flytre.${mod_id}.mixin")
+            printmapping("../proguard/mappings/${archivesBaseName}-mixin.mappings")
+        }
+    }
+
+    task fixMixinNames(type: Exec) {
+        workingDir '../proguard'
+        String rootDir = file(".").toPath().toString()
+        String buildDir = file("build/libs")
+        commandLine 'python', "fix_mixin_names.py", "${rootDir}", "${buildDir}", "${archivesBaseName}", "${mod_id}"
+    }
+
+
+    task remap(type: RemapJarTask) {
+        input = file("build/libs/${archivesBaseName}-final.jar")
+        addNestedDependencies = false
+//        remapAccessWidener = true;
+    }
+
+    task cleanUp(type: Exec) {
+        workingDir '../proguard'
+        String rootDir = file(".").toPath().toString()
+        String buildDir = file("build/libs")
+        commandLine 'python', "clean_up.py", "${rootDir}", "${buildDir}", "${archivesBaseName}"
+    }
+
+    dependsOn 'build'
+    dependsOn 'prepareForObfuscation'
+    dependsOn 'obfuscateStep1'
+    dependsOn 'obfuscateStep2'
+    dependsOn 'fixMixinNames'
+    dependsOn 'cleanUp'
+    dependsOn 'remap'
+
+    tasks.findByName('prepareForObfuscation').mustRunAfter 'build'
+    tasks.findByName('obfuscateStep1').mustRunAfter 'prepareForObfuscation'
+    tasks.findByName('obfuscateStep2').mustRunAfter 'obfuscateStep1'
+    tasks.findByName('fixMixinNames').mustRunAfter 'obfuscateStep2'
+    tasks.findByName('remap').mustRunAfter 'fixMixinNames'
+    tasks.findByName('cleanUp').mustRunAfter 'remap'
+}
