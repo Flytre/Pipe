@@ -25,7 +25,10 @@
     "main": [
       "net.flytre.pipe.Initializer"
     ],
-    "server": []
+    "server": [],
+    "rei": [
+      "net.flytre.pipe.rei.PipePlugin"
+    ]
   },
   "mixins": [
     "${mod_id}.mixins.json",

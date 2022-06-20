@@ -7,34 +7,34 @@ import net.minecraft.util.math.Direction;
 
 import java.util.LinkedList;
 
-public class TimedPipeResult {
-    public static final TimedPipeResult DEFAULT;
+public class TimedPipePath {
+    public static final TimedPipePath DEFAULT;
 
     static {
-        PipeResult result = new PipeResult(BlockPos.ORIGIN, new LinkedList<>(), ItemStack.EMPTY, Direction.NORTH, Direction.NORTH);
-        DEFAULT = new TimedPipeResult(result, 9999);
+        PipePath result = new PipePath(BlockPos.ORIGIN, new LinkedList<>(), ItemStack.EMPTY, Direction.NORTH, Direction.NORTH);
+        DEFAULT = new TimedPipePath(result, 9999);
     }
 
-    private final PipeResult pipeResult;
+    private final PipePath pipePath;
     private int time;
     private boolean stuck;
 
-    public TimedPipeResult(PipeResult pipeResult, int time) {
-        this(pipeResult, time, false);
+    public TimedPipePath(PipePath pipePath, int time) {
+        this(pipePath, time, false);
     }
 
-    public TimedPipeResult(PipeResult pipeResult, int time, boolean stuck) {
-        this.pipeResult = pipeResult;
+    public TimedPipePath(PipePath pipePath, int time, boolean stuck) {
+        this.pipePath = pipePath;
         this.time = time;
         this.stuck = stuck;
     }
 
-    public static TimedPipeResult fromTag(NbtCompound tag) {
+    public static TimedPipePath fromTag(NbtCompound tag) {
         NbtCompound pipeTag = tag.getCompound("result");
-        PipeResult result = PipeResult.fromTag(pipeTag);
+        PipePath result = PipePath.fromTag(pipeTag);
         int time = tag.getInt("time");
         boolean stuck = tag.getBoolean("stuck");
-        return new TimedPipeResult(result, time, stuck);
+        return new TimedPipePath(result, time, stuck);
     }
 
     public boolean isStuck() {
@@ -45,8 +45,8 @@ public class TimedPipeResult {
         this.stuck = stuck;
     }
 
-    public PipeResult getPipeResult() {
-        return pipeResult;
+    public PipePath getPipePath() {
+        return pipePath;
     }
 
     public int getTime() {
@@ -60,12 +60,12 @@ public class TimedPipeResult {
     public void decreaseTime() {
         this.time--;
         if (time <= 0)
-            getPipeResult().removeAnim();
+            getPipePath().removeAnim();
     }
 
     public NbtCompound toTag(NbtCompound tag, boolean client) {
         NbtCompound pipeTag = new NbtCompound();
-        tag.put("result", pipeResult.toTag(pipeTag, client));
+        tag.put("result", pipePath.toTag(pipeTag, client));
         tag.putInt("time", time);
         tag.putBoolean("stuck", stuck);
         return tag;

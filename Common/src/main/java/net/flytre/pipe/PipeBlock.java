@@ -110,64 +110,93 @@ public class PipeBlock extends BlockWithEntity implements ItemPipeConnectable {
     @Override
     public ActionResult onUse(BlockState state, World world, BlockPos pos, PlayerEntity player, Hand hand, BlockHitResult hit) {
 
-        Item item = player.getStackInHand(hand).getItem();
-        if (world.isClient) {
+
+        if (world.isClient)
             return ActionResult.SUCCESS;
-        } else {
 
-            if (!(item == ItemRegistry.SERVO.get()) && !(item instanceof WrenchItem)) {
-                for (Direction dir : Direction.values()) {
-                    if (state.get(getProperty(dir)) == PipeSide.SERVO) {
-                        this.openScreen(world, pos, (ServerPlayerEntity) player);
-                        return ActionResult.CONSUME;
-                    }
-                }
-                return ActionResult.PASS;
-            }
+        Item item = player.getStackInHand(hand).getItem();
 
-            Direction side = hit.getSide();
-            PipeSide current = state.get(getProperty(side));
-            //SERVO
-            if (item == ItemRegistry.SERVO.get()) {
-                if (current == PipeSide.CONNECTED || current == PipeSide.NONE) {
-                    BlockState newState = state.with(getProperty(side), PipeSide.SERVO);
-                    world.setBlockState(pos, newState);
-                    setWrenched(world, pos, side, false);
-                    if (!player.isCreative()) {
-                        player.getStackInHand(hand).decrement(1);
-                    }
-                }
-            } else {
-                //WRENCH
-                if (current == PipeSide.SERVO) {
-                    ItemScatterer.spawn(world, pos.getX(), pos.getY(), pos.getZ(), new ItemStack(ItemRegistry.SERVO.get()));
-                    world.setBlockState(pos, state.with(getProperty(side), PipeSide.NONE));
-                    setWrenched(world, pos, side, false);
-                } else {
-                    BlockState state1 = world.getBlockState(pos.offset(side));
-                    if (state1.getBlock() instanceof PipeBlock && state.get(getProperty(side)) == PipeSide.NONE && isWrenched(world, pos.offset(side), side.getOpposite())) {
-                        world.setBlockState(pos.offset(side), state1.with(getProperty(side.getOpposite()), PipeSide.NONE));
-                        setWrenched(world, pos.offset(side), side.getOpposite(), false);
-                    } else if (!isWrenched(world, pos, side)) {
-                        setWrenched(world, pos, side, true);
-                        if (state1.getBlock() instanceof PipeBlock && state1.get(getProperty(side.getOpposite())) != PipeSide.SERVO) {
-                            world.setBlockState(pos.offset(side), state1.with(getProperty(side.getOpposite()), PipeSide.NONE));
-                            setWrenched(world, pos.offset(side), side.getOpposite(), false);
-                        }
-                    } else {
-                        world.setBlockState(pos, state.with(getProperty(side), PipeSide.NONE));
-                        setWrenched(world, pos, side, false);
-                        Block block = state1.getBlock();
-                        BlockEntity entity = world.getBlockEntity(pos.offset(side));
-                        if (isConnectable(block, entity))
-                            world.setBlockState(pos, state.with(getProperty(side), PipeSide.CONNECTED));
+        if (!(item == ItemRegistry.SERVO.get()) && !(item instanceof WrenchItem)) {
+            return attemptOpenScreen(world, state, pos, (ServerPlayerEntity) player);
+        }
+        Direction side = hit.getSide();
+        PipeSide current = state.get(getProperty(side));
+        //SERVO
+        if (item == ItemRegistry.SERVO.get())
+            useServo(world, state, pos, player, hand, side, current);
 
-                    }
-                }
-            }
+
+        if (item == ItemRegistry.WRENCH.get()) {
+            useWrench(world, state, pos, player, side, current);
         }
 
+
         return super.onUse(state, world, pos, player, hand, hit);
+    }
+
+    private void useWrench(World world, BlockState state, BlockPos pos, PlayerEntity player, Direction side, PipeSide current) {
+
+        if (current == PipeSide.SERVO) {
+            ItemScatterer.spawn(world, pos.getX(), pos.getY(), pos.getZ(), new ItemStack(ItemRegistry.SERVO.get()));
+            world.setBlockState(pos, state.with(getProperty(side), PipeSide.NONE));
+            setWrenched(world, pos, side, false);
+            return;
+        }
+
+
+        BlockState offsetState = world.getBlockState(pos.offset(side));
+
+        //if this pipe has no connection and the other pipe is wrenched and this one is not, un-wrench the other side
+        if (offsetState.getBlock() instanceof PipeBlock && current == PipeSide.NONE && !isWrenched(world, pos, side) && isWrenched(world, pos.offset(side), side.getOpposite())) {
+            world.setBlockState(pos.offset(side), offsetState.with(getProperty(side.getOpposite()), PipeSide.CONNECTED));
+            world.setBlockState(pos, state.with(getProperty(side), PipeSide.CONNECTED));
+            setWrenched(world, pos.offset(side), side.getOpposite(), false);
+            return;
+        }
+
+
+        if (!isWrenched(world, pos, side)) {
+            setWrenched(world, pos, side, true);
+            world.setBlockState(pos, state.with(getProperty(side), PipeSide.NONE));
+
+            //if this pipe is not wrenched and the other pipe does not have a servo
+            //then the other pipe should now have no connection if it didn't before
+            if (offsetState.getBlock() instanceof PipeBlock && offsetState.get(getProperty(side.getOpposite())) != PipeSide.SERVO) {
+                world.setBlockState(pos.offset(side), offsetState.with(getProperty(side.getOpposite()), PipeSide.NONE));
+            }
+            return;
+        }
+
+        //default is to just un-wrench this block and let events handle the connection forming
+        world.setBlockState(pos, state.with(getProperty(side), PipeSide.NONE));
+        setWrenched(world, pos, side, false);
+        Block block = offsetState.getBlock();
+        BlockEntity entity = world.getBlockEntity(pos.offset(side));
+        if (isConnectable(block, entity))
+            world.setBlockState(pos, state.with(getProperty(side), PipeSide.CONNECTED));
+
+
+    }
+
+    private void useServo(World world, BlockState state, BlockPos pos, PlayerEntity player, Hand hand, Direction side, PipeSide current) {
+        if (current == PipeSide.CONNECTED || current == PipeSide.NONE) {
+            BlockState newState = state.with(getProperty(side), PipeSide.SERVO);
+            world.setBlockState(pos, newState);
+            setWrenched(world, pos, side, false);
+            if (!player.isCreative()) {
+                player.getStackInHand(hand).decrement(1);
+            }
+        }
+    }
+
+    private ActionResult attemptOpenScreen(World world, BlockState state, BlockPos pos, ServerPlayerEntity player) {
+        for (Direction dir : Direction.values()) {
+            if (state.get(getProperty(dir)) == PipeSide.SERVO) {
+                this.openScreen(world, pos, player);
+                return ActionResult.CONSUME;
+            }
+        }
+        return ActionResult.PASS;
     }
 
     @Override
@@ -331,7 +360,6 @@ public class PipeBlock extends BlockWithEntity implements ItemPipeConnectable {
      * adjacent to the block will tell all pipes in the network to clear their caches and recalculate routes. This is really
      * important to prevent stale, inaccurate cached values.
      *
-     *
      * @param state   Current BlockState of Pipe
      * @param world   Current world
      * @param pos     Current BlockPos of Pipe
@@ -346,7 +374,7 @@ public class PipeBlock extends BlockWithEntity implements ItemPipeConnectable {
         if (changedState.getBlock() instanceof AirBlock || isConnectable(changedState.getBlock(), world.getBlockEntity(fromPos))) {
             BlockEntity pipeEntity = world.getBlockEntity(pos);
             if (pipeEntity instanceof PipeEntity pipe) {
-                pipe.clearNetworkCache();
+                pipe.clearNetworkCache(true);
             }
         }
         super.neighborUpdate(state, world, pos, block, fromPos, notify);

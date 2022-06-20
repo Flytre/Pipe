@@ -9,7 +9,7 @@ import net.minecraft.util.math.Direction;
 
 import java.util.LinkedList;
 
-public class PipeResult {
+public class PipePath {
     private final LinkedList<BlockPos> path;
     private final BlockPos destination;
     private final ItemStack stack;
@@ -17,7 +17,7 @@ public class PipeResult {
     private Direction anim;
     private int length;
 
-    public PipeResult(BlockPos destination, LinkedList<BlockPos> path, ItemStack stack, Direction direction, Direction anim) {
+    public PipePath(BlockPos destination, LinkedList<BlockPos> path, ItemStack stack, Direction direction, Direction anim) {
         this.path = path;
         this.destination = destination;
         this.stack = stack.copy();
@@ -26,7 +26,7 @@ public class PipeResult {
         this.anim = anim;
     }
 
-    public static PipeResult fromTag(NbtCompound tag) {
+    public static PipePath fromTag(NbtCompound tag) {
         BlockPos end = Formatter.arrToPos(tag.getIntArray("end"));
 
         LinkedList<BlockPos> path = new LinkedList<>();
@@ -39,7 +39,7 @@ public class PipeResult {
         ItemStack stack2 = ItemStack.fromNbt(stack);
         Direction d = Direction.byId(tag.getInt("dir"));
         Direction anim = tag.contains("anim") ? Direction.byId(tag.getInt("anim")) : null;
-        PipeResult result = new PipeResult(end, path, stack2, d, anim);
+        PipePath result = new PipePath(end, path, stack2, d, anim);
         result.length = length;
         return result;
     }
@@ -101,7 +101,7 @@ public class PipeResult {
 
     @Override
     public String toString() {
-        return "PipeResult{" +
+        return "PipePath{" +
                 "path=" + path +
                 ", destination=" + destination +
                 ", stack=" + stack +
@@ -110,8 +110,13 @@ public class PipeResult {
     }
 
 
-    public PipeResult copy() {
-        return new PipeResult(destination, new LinkedList<>(path), stack.copy(), direction, anim);
+    public PipePath copy() {
+        return new PipePath(destination, new LinkedList<>(path), stack.copy(), direction, anim);
+    }
+
+    public static PipePath get(StackFreePath path, ItemStack stack) {
+        StackFreePath copy = path.copy();
+        return new PipePath(copy.getDestination(),copy.getPath(),stack,copy.getDirection(),copy.getAnim());
     }
 
 }

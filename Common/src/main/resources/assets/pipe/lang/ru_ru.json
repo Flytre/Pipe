@@ -1,0 +1,17 @@
+{
+  "block.pipe.item_pipe": "Предметная труба",
+  "block.pipe.fast_pipe": "Быстрая труба",
+  "item.pipe.servo": "Сервопривод",
+  "item.pipe.wrench": "Гаечный ключ",
+  "itemGroup.pipe.all" : "Труба",
+  "item.pipe.wrench.1": "Соединения заблокированы",
+  "item.pipe.wrench.2": "Зациклить",
+  "block.pipe.item_pipe.blacklist": "Черный список",
+  "block.pipe.item_pipe.closest": "Ближайший",
+  "block.pipe.item_pipe.round_robin": "Зациклить",
+  "block.pipe.item_pipe.whitelist": "Белый список",
+  "block.pipe.item_pipe.mod_match.false" : "Игнорировать мод",
+  "block.pipe.item_pipe.mod_match.true" : "Сопоставить все предметы из представленных модов",
+  "block.pipe.item_pipe.nbt_match.false" : "Игнор Nbt",
+  "block.pipe.item_pipe.nbt_match.true" : "Совпадение Nbt"
+}

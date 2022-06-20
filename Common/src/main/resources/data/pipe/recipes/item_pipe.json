@@ -1,9 +1,9 @@
 {
   "type": "minecraft:crafting_shaped",
   "pattern": [
-    "i i",
+    "igi",
     "ici",
-    "i i"
+    "igi"
   ],
   "key": {
     "i": {
@@ -11,10 +11,13 @@
     },
     "c": {
       "item": "minecraft:chest"
+    },
+    "g": {
+      "item" : "minecraft:glass_pane"
     }
   },
   "result": {
     "item": "pipe:item_pipe",
-    "count": 6
+    "count": 5
   }
 }

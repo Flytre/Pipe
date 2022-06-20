@@ -30,8 +30,8 @@ import org.jetbrains.annotations.Nullable;
 
 import java.util.*;
 import java.util.function.Function;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
-
 
 /**
  * Some terms defined:
@@ -54,52 +54,25 @@ import java.util.stream.Collectors;
  * <p>
  * That all being said, a pipe entity is a block entity that stores data about a pipe
  */
+@SuppressWarnings("DuplicatedCode")
 public final class PipeEntity extends BlockEntity implements CustomScreenHandlerFactory, Filtered, FilterEventHandler {
 
-
     /**
-     * Cache is stored as a linked hash map, so unused entries are sometimes automatically removed to save memory
-     * <p>
-     * <p>
-     * It's important to note that in find-nearest mode (default), the cache stores the valid destination found
-     * or lack thereof, while in round-robin mode the cache stores ALL possible destinations regardless of whether an item can actually be inserted and then validates them
-     * when the cache is asked to retrieve the value.
-     * <p>
-     * The reason for this is that the memory cost and computational cost would be high in find-nearest, while in round-robin those costs
-     * are expected and re-calculating the cache everytime the state of an inventory changes so that an item can now or no longer be inserted would be costly
-     * <p>
-     * <p>
-     * Important things to note about caching.
-     * -Needs to handle pipes being removed / added
-     * -Needs to handle destination inventories being removed / added
-     * -Needs to handle state of destination inventories changing (i.e. filling up, emptying out)
-     * -Cannot consume too much memory or that will slow other processes
-     * -Needs to handle conditions being updated, i.e. filter being updated
+     * Stores the current pipe network, recalculated upon any block changes.
+     * From this where items can go is calculated
      */
-    private final transient LinkedHashMap<CacheKey, CacheResult> cache = new LinkedHashMap<>() {
-        @Override
-        protected boolean removeEldestEntry(final Map.Entry<CacheKey, CacheResult> eldest) {
-
-            long time = world == null ? Long.MAX_VALUE : world.getTime();
-            long entryTime = eldest.getValue().time;
-            return time - entryTime > 500 && size() > 10;
-        }
-    };
-
+    private transient final Map<BlockPos, PipeNetworkRoutes> pipeNetwork;
     /**
      * The network stores the locations of all pipes in the network; The same set is shared across all pipes in the network so it must
      * not be altered inappropriately.
      */
-    public transient Set<BlockPos> network = new HashSet<>();
-
-
+    public transient NetworkInformation networkInformation = new NetworkInformation();
     /**
      * Stores a map of each side of the pipe (indicated by direction) and whether that side is "wrenched"
      * Sides that are "wrenches" artificially block incoming connections, so that pipes can be placed
      * side by side without connecting
      */
     public Map<Direction, Boolean> wrenched;
-
     /**
      * How long since the cache has been cleared by block update.
      * The point of this variable is to prevent clearing the cache multiple times in the same tick,
@@ -108,14 +81,8 @@ public final class PipeEntity extends BlockEntity implements CustomScreenHandler
      */
     private int ticksSinceLastCacheClear = 0;
     /**
-     * How long ago the cache was used. If the cache hasn't been used in a long time, which means
-     * items stopped flowing through that pipe, just empty the cache to save memory
-     */
-    private transient long lastCacheTick = 0;
-
-    /**
      * Represents the items currently flowing through the pipe.
-     * A "TimedPipeResult" stores:
+     * A "TimedPipePath" stores:
      * How long until this item has passed through this pipe and needs to go to the next one
      * Whether the item is stuck and is attempted to go to an invalid destination
      * (for example, if a pipe in the route is broken after the route the item will take is calculated)
@@ -125,8 +92,7 @@ public final class PipeEntity extends BlockEntity implements CustomScreenHandler
      * Client: What side of the pipe the item is travelling towards, for item rendering purposes
      * The total distance this item needs to travel
      */
-    private Set<TimedPipeResult> items;
-
+    private Set<TimedPipePath> items;
     /**
      * The following two variables store data about round robin mode:
      * -Is the pipe in round-robin mode? (Versus closest valid destination)
@@ -134,25 +100,20 @@ public final class PipeEntity extends BlockEntity implements CustomScreenHandler
      */
     private int roundRobinIndex;
     private boolean roundRobinMode;
-
     /**
      * A pipe can only transmit items so often. This stores the cooldown until it can transmit another item
      */
     private int cooldown;
-
     /**
      * A filter inventory is a utility class in my Minecraft library mod that stores information about a filter -
      * namely, data about what kinds of items are allowed through it and whether any given item would be allowed to
      * pass through
      */
     private FilterInventory filter;
-
     /**
      * Stores when data needs to be synced to the client, then syncs it when this is true
      */
     private boolean needsSync;
-
-
     /**
      * How fast this pipe should move items, so its speed.
      */
@@ -163,65 +124,19 @@ public final class PipeEntity extends BlockEntity implements CustomScreenHandler
      */
     private boolean speedSet = false;
 
-
     /**
      * Something to note is that state-dependent data about a block entity is usually initialized in the readNbt() method, and not in the
      * constructor. Therefore the constructor is almost meaningless except as initializing a default state.
      */
     public PipeEntity(BlockPos pos, BlockState state) {
         super(Registry.ITEM_PIPE_BLOCK_ENTITY.get(), pos, state);
+        pipeNetwork = new HashMap<>();
         roundRobinIndex = 0;
         roundRobinMode = false;
         items = new HashSet<>();
         wrenched = Arrays.stream(Direction.values()).collect(Collectors.toMap(Function.identity(), i -> false));
         filter = FilterInventory.readNbt(new NbtCompound(), 1); //Basically, it's asking the filter inventory to read from no nbt, so it creates a default filter inventory.
         needsSync = false;
-    }
-
-
-    /**
-     * A useful analogy of this function is to think of a 3D area fill scenario, where walls cannot be traversed.
-     * In this analogy, this function detects whether each adjacent block is a wall or empty.
-     *
-     * @param startingPos    The position of the block to execute this function on.
-     * @param world          The world that this block is in.
-     * @param stack          The item stack that is being transferred
-     * @param checkInsertion whether to check if said item stack needs to actually be insertable into potential inventories
-     * @return The collection of potential directions the item could go next
-     * <p>
-     */
-    public static Collection<Direction> transferableDirections(BlockPos startingPos, World world, ItemStack stack, boolean checkInsertion, boolean stuck) {
-        Set<Direction> result = new HashSet<>();
-
-        if (world == null)
-            return result;
-
-        PipeEntity me = (PipeEntity) world.getBlockEntity(startingPos);
-
-        if (me == null)
-            return result;
-
-        for (Direction direction : Direction.values()) { //For each possible direction
-
-            if ((me.getSide(direction) == PipeSide.CONNECTED)) { //If this pipe is connected to something
-                BlockPos pos = startingPos.offset(direction);
-                BlockEntity entity = world.getBlockEntity(pos);
-                Inventory inventory = InventoryUtils.getInventoryAt(world, pos);
-
-                if (entity instanceof PipeEntity pipeEntity) { //If connected to another pipe
-                    PipeSide state = world.getBlockState(startingPos.offset(direction)).get(PipeBlock.getProperty(direction.getOpposite()));
-                    boolean valid = state == PipeSide.CONNECTED || (state == PipeSide.SERVO && (pipeEntity.filter.isEmpty() || pipeEntity.filter.passFilterTest(stack)));
-                    if (valid)
-                        result.add(direction);
-                } else if (inventory != null) { //If connected to an inventory
-                    if (!checkInsertion || canInsertFirm(world, me.network, stack, inventory, direction, stuck)) { //If the stack can be inserted into that inventory
-                        result.add(direction);
-                    }
-                }
-            }
-        }
-
-        return result;
     }
 
     /**
@@ -231,16 +146,14 @@ public final class PipeEntity extends BlockEntity implements CustomScreenHandler
      * @return Checks if item stack X be inserted into inventory Y from Direction D. However, it also takes into consideration all other items flowing into the inventory
      * from the network, and if those being inserted already would make it impossible for item stack X to be inserted, MAY return false.
      */
-    private static boolean canInsertFirm(World world, Set<BlockPos> network, ItemStack stack, Inventory destination, Direction direction, boolean isStuck) {
+    public static boolean canInsertFirm(World world, NetworkInformation networkInformation, ItemStack stack, Inventory destination, Direction direction, boolean isStuck) {
 
 
-        //Works because you can only extract stacks of 1 item at a time.
-        var flows = getFlows(network, world);
-        var wrapped = new WrappedItemStack(stack);
+        Set<TimedPipePath> paths = networkInformation.getTrackedPaths(stack);
 
 
         //basically, if multiple items are stuck they will block EACH OTHER from finding a valid container; using isStuck to manually override that behavior prevents this.
-        int flowCt = isStuck ? 0 : (flows.containsKey(wrapped) ? (int) flows.get(wrapped).stream().filter(k -> InventoryUtils.getInventoryAt(world, k.getPipeResult().getDestination()) == destination).count() : 0);
+        int flowCt = isStuck ? 0 : ((int) paths.stream().filter(k -> InventoryUtils.getInventoryAt(world, k.getPipePath().getDestination()) == destination).count());
 
 
         //if there are no items of that type flowing through the pipe return true
@@ -284,67 +197,42 @@ public final class PipeEntity extends BlockEntity implements CustomScreenHandler
 
     }
 
-    //get all items flowing thru a network
-    public static Map<WrappedItemStack, Set<TimedPipeResult>> getFlows(Set<BlockPos> network, World world) {
-        Map<WrappedItemStack, Set<TimedPipeResult>> flows = new HashMap<>();
+    /**
+     * Identifies all the possible directions an item could potentially go to from a position. This could be an output
+     * inventory or another pipe.
+     */
+    public static Collection<ValidDirection> getValidDirections(BlockPos startingPos, World world) {
+        Set<ValidDirection> result = new HashSet<>();
 
-        assert world != null;
-        for (BlockPos pos : network) {
-            if (world.getBlockEntity(pos) instanceof PipeEntity pipe) {
-                for (TimedPipeResult result : pipe.getQueuedItems()) {
-                    WrappedItemStack stack = new WrappedItemStack(result.getPipeResult().getStack());
-                    flows.putIfAbsent(stack, new HashSet<>());
-                    flows.get(stack).add(result);
+        if (world == null)
+            return result;
+
+        PipeEntity me = (PipeEntity) world.getBlockEntity(startingPos);
+
+        if (me == null)
+            return result;
+
+        for (Direction direction : Direction.values()) { //For each possible direction
+
+            if (me.getSide(direction) == PipeSide.CONNECTED) { //If this pipe is connected to something
+                BlockPos pos = startingPos.offset(direction);
+                BlockEntity entity = world.getBlockEntity(pos);
+                Inventory inventory = InventoryUtils.getInventoryAt(world, pos);
+
+                if (entity instanceof PipeEntity pipeEntity) { //If connected to another pipe
+                    PipeSide state = world.getBlockState(startingPos.offset(direction)).get(PipeBlock.getProperty(direction.getOpposite()));
+                    if (state == PipeSide.CONNECTED)
+                        result.add(new ValidDirection(direction, null, null));
+                    else if (state == PipeSide.SERVO)
+                        result.add(new ValidDirection(direction, () -> pipeEntity.filter, pipeEntity::isRoundRobinMode));
+
+                } else if (inventory != null) { //If connected to an inventory
+                    result.add(new ValidDirection(direction, null, null));
                 }
             }
         }
-        return flows;
-    }
 
-    /**
-     * The validate method is used to ensure that a previously calculated cached route is still valid
-     * This could return false if the destination block is destroyed or becomes full, a filter is changed so the item is no longer valid,
-     * a pipe along the route is destroyed, etc.
-     */
-    private boolean validate(ItemStack stack, BlockPos start, PipeResult result) {
-        assert world != null;
-        Iterator<BlockPos> iterator = result.getPath().iterator();
-        BlockEntity startEntity = world.getBlockEntity(start);
-
-        if (startEntity == null)
-            return false;
-
-        while (iterator.hasNext()) {
-            BlockPos next = iterator.next();
-            if (next.equals(start))
-                continue;
-
-            PipeEntity nextPipe = (PipeEntity) world.getBlockEntity(next);
-            @NotNull Direction direction = Objects.requireNonNull(Direction.fromVector(next.subtract(start)));
-            if (!validateChain(stack, next, startEntity, nextPipe, direction))
-                return false;
-
-            start = next;
-            startEntity = nextPipe;
-        }
-
-        BlockPos finalPos = result.getDestination();
-        assert startEntity != null;
-        return canInsertFirm(((PipeEntity) startEntity).world, ((PipeEntity) startEntity).network, stack, InventoryUtils.getInventoryAt(world, finalPos), Objects.requireNonNull(Direction.fromVector(finalPos.subtract(start))), false);
-    }
-
-    private boolean validateChain(ItemStack stack, BlockPos next, BlockEntity currentEntity, BlockEntity nextEntity, @NotNull Direction direction) {
-        assert world != null;
-
-        PipeEntity currentPipe = currentEntity instanceof PipeEntity ? (PipeEntity) currentEntity : null;
-        PipeEntity nextPipe = nextEntity instanceof PipeEntity ? (PipeEntity) nextEntity : null;
-
-        if (nextPipe != null && (currentPipe == null || currentPipe.getSide(direction) == PipeSide.CONNECTED)) {
-            PipeSide state = world.getBlockState(next).get(PipeBlock.getProperty(direction.getOpposite()));
-            return state == PipeSide.CONNECTED || (state == PipeSide.SERVO && (nextPipe.filter.isEmpty() || nextPipe.filter.passFilterTest(stack)));
-        }
-
-        return false;
+        return result;
     }
 
     @Override
@@ -352,62 +240,8 @@ public final class PipeEntity extends BlockEntity implements CustomScreenHandler
         return filter;
     }
 
-    public Set<TimedPipeResult> getQueuedItems() {
+    public Set<TimedPipePath> getQueuedItems() {
         return items;
-    }
-
-    /**
-     * One=true indicates the normal mode, where the method returns after finding the nearest valid location. When one is false, used for round-
-     * robin mode, it finds all possible (including ones where the item cannot be inserted due to the state of the inventory) locations and returns them in order sorted from nearest to furthest.
-     * Performs a BFS search and returns the first valid location it finds to dump the items into
-     */
-    private List<PipeResult> internalFindDestinations(ItemStack stack, BlockPos start, boolean one, boolean stuck) {
-
-        Direction animate = null;
-        for (Direction dir : Direction.values()) {
-            if (getPos().offset(dir).equals(start))
-                animate = dir;
-        }
-        List<PipeResult> result = new ArrayList<>();
-        if (world == null)
-            return result;
-
-        Deque<PipeResult> toVisit = new LinkedList<>();
-        Set<BlockPos> visited = new HashSet<>();
-        Set<VisitedAngle> inventorySides = new HashSet<>();
-        toVisit.add(new PipeResult(this.getPos(), new LinkedList<>(), stack, Direction.NORTH, animate));
-
-        while (toVisit.size() > 0) {
-            PipeResult popped = toVisit.pop();
-            BlockPos current = popped.getDestination();
-            Queue<BlockPos> path = popped.getPath();
-
-            if (!current.equals(start)) {
-                if (InventoryUtils.getInventoryAt(world, current) != null) {
-                    VisitedAngle side = new VisitedAngle(popped.getDirection(), current);
-                    if (!(inventorySides.contains(side))) {
-                        result.add(popped);
-                        inventorySides.add(side);
-                        if (one)
-                            return result;
-                    }
-                }
-            }
-
-            if (world.getBlockEntity(current) instanceof PipeEntity) {
-                Collection<Direction> neighbors = PipeEntity.transferableDirections(current, world, stack, one, stuck);
-                for (Direction d : neighbors) {
-                    if (!visited.contains(current.offset(d)) || InventoryUtils.getInventoryAt(world, current.offset(d)) != null) {
-                        LinkedList<BlockPos> newPath = new LinkedList<>(path);
-                        newPath.add(current);
-                        toVisit.add(new PipeResult(current.offset(d), newPath, stack, d.getOpposite(), animate));
-                    }
-                }
-            }
-            visited.add(current);
-        }
-
-        return result;
     }
 
     /**
@@ -415,36 +249,22 @@ public final class PipeEntity extends BlockEntity implements CustomScreenHandler
      * <p>
      * Internally, it uses a cache based approach although this is subject to change.
      */
-    public List<PipeResult> findDestinations(ItemStack stack, BlockPos start, boolean one, boolean stuck) {
-        assert world != null;
-        CacheKey key = new CacheKey(stack, start, one);
-        if (cache.containsKey(key)) {
-            List<PipeResult> val = cache.get(key).value;
+    public List<PipePath> findDestinations(ItemStack stack, BlockPos start, boolean stuck) {
 
+        if (!pipeNetwork.containsKey(start))
+            pipeNetwork.put(start, getNetwork(start));
 
-            //If the cache returns an empty result and one=false, this could be because the destination inventories cannot
-            //store an item.
-            boolean clear = val.isEmpty() && Math.abs(world.getTime() - cache.get(key).time) > 100;
+        List<StackFreePath> paths = pipeNetwork.get(start).getPathsFor(stack, (item, pos, dir) -> {
 
+            if (world == null)
+                return false;
 
-            if (!clear && !one) {
-                lastCacheTick = world.getTime();
-                return val.stream().filter(i -> canInsertFirm(world, network, stack, InventoryUtils.getInventoryAt(world, i.getDestination()), i.getDirection().getOpposite(), stuck)).map(PipeResult::copy).collect(Collectors.toList());
-            } else if (!clear && (val.stream().allMatch(i -> validate(stack, start, i)))) {
-                lastCacheTick = world.getTime();
-                //Copy the cache value to prevent a reference leak which enables modifying the cache
-                return val.stream().map(PipeResult::copy).collect(Collectors.toList());
-            } else {
-                cache.remove(key);
-            }
-        }
-
-        List<PipeResult> toCache = internalFindDestinations(stack, start, one, stuck);
-        cache.put(key, new CacheResult(world.getTime(), toCache));
-        lastCacheTick = world.getTime();
-        //Copy the cache value to prevent a reference leak which enables modifying the cache
-        return toCache.stream().map(PipeResult::copy).collect(Collectors.toList());
-
+            BlockEntity entity = world.getBlockEntity(pos);
+            if (!(entity instanceof Inventory inv))
+                return false;
+            return canInsertFirm(world, networkInformation, item, inv, dir, stuck);
+        });
+        return paths.stream().map(i -> PipePath.get(i, stack)).toList();
     }
 
     /**
@@ -474,20 +294,19 @@ public final class PipeEntity extends BlockEntity implements CustomScreenHandler
                     ItemStack one = stack.copy();
                     one.setCount(1);
 
-                    PipeResult result;
-                    if (isRoundRobinMode()) {
-                        List<PipeResult> results = findDestinations(one, this.pos.offset(d), false, false);
-                        if (results.size() <= roundRobinIndex) {
-                            roundRobinIndex = 0;
-                        }
-
-                        result = roundRobinIndex < results.size() ? results.get(roundRobinIndex++) : null;
-                    } else {
-                        List<PipeResult> results = findDestinations(one, this.pos.offset(d), true, false);
-                        result = results.size() == 0 ? null : results.get(0);
+                    List<PipePath> results = findDestinations(one, this.pos.offset(d), false);
+                    if (results.size() <= roundRobinIndex) {
+                        roundRobinIndex = 0;
                     }
+
+                    PipePath result = roundRobinIndex < results.size() ? results.get(roundRobinIndex++) : null;
+
                     if (result != null) {
-                        items.add(new TimedPipeResult(result, ticksPerOperation * 3 / 2));
+                        {
+                            TimedPipePath addition = new TimedPipePath(result, ticksPerOperation * 3 / 2);
+                            items.add(addition);
+                            networkInformation.addTrackedPath(addition);
+                        }
                         stack.decrement(1);
                         out.markDirty();
                         markDirty();
@@ -506,7 +325,8 @@ public final class PipeEntity extends BlockEntity implements CustomScreenHandler
     public PipeSide getSide(Direction d) {
         if (world == null)
             return null;
-        BlockState state = world.getBlockState(pos);
+
+        BlockState state = getCachedState();
         if (!(state.getBlock() instanceof PipeBlock))
             return null;
         return state.get(PipeBlock.getProperty(d));
@@ -515,7 +335,6 @@ public final class PipeEntity extends BlockEntity implements CustomScreenHandler
     public boolean hasServo(Direction d) {
         return getSide(d) == PipeSide.SERVO;
     }
-
 
     /**
      * Serialize data to be saved for when the area the pipe is in is unloaded.
@@ -527,7 +346,7 @@ public final class PipeEntity extends BlockEntity implements CustomScreenHandler
         tag.putBoolean("rrm", this.roundRobinMode);
         tag.putInt("cooldown", this.cooldown);
         NbtList list = new NbtList();
-        for (TimedPipeResult piped : items)
+        for (TimedPipePath piped : items)
             list.add(piped.toTag(new NbtCompound(), false));
         tag.put("queue", list);
         tag.put("filter", filter.writeNbt());
@@ -564,12 +383,11 @@ public final class PipeEntity extends BlockEntity implements CustomScreenHandler
             this.filter = FilterInventory.readNbt(filter, 1);
         }
 
-        if(tag.contains("ticksPerOperation"))
+        if (tag.contains("ticksPerOperation"))
             ticksPerOperation = tag.getInt("ticksPerOperation");
 
         super.readNbt(tag);
     }
-
 
     /**
      * Gets a collection of all item stacks that are travelling through the pipe currently
@@ -577,13 +395,12 @@ public final class PipeEntity extends BlockEntity implements CustomScreenHandler
     public Collection<ItemStack> getQueuedStacks() {
         Set<ItemStack> result = new HashSet<>();
 
-        for (TimedPipeResult pipeResult : items) {
-            result.add(pipeResult.getPipeResult().getStack());
+        for (TimedPipePath pipeResult : items) {
+            result.add(pipeResult.getPipePath().getStack());
         }
 
         return result;
     }
-
 
     /**
      * Looks long but is not scary:
@@ -594,24 +411,23 @@ public final class PipeEntity extends BlockEntity implements CustomScreenHandler
      * Else, remove this item from the pipe and add it to the next pipe
      */
     public void tickQueuedItems() {
-        Set<TimedPipeResult> toRemove = new HashSet<>(items.size() / 2 + 1);
-        Set<TimedPipeResult> toAdd = new HashSet<>(items.size() / 2 + 1);
+        Set<TimedPipePath> toRemove = new HashSet<>(items.size() / 2 + 1);
+        Set<TimedPipePath> toAdd = new HashSet<>(items.size() / 2 + 1);
 
-
-        for (TimedPipeResult timed : items) {
+        for (TimedPipePath timed : items) {
             timed.decreaseTime();
             if (timed.getTime() <= 0) {
-                if (timed.getPipeResult().getLength() < Registry.PIPE_CONFIG.getConfig().maxRenderPipeLength)
+                if (timed.getPipePath().getLength() < Registry.PIPE_CONFIG.getConfig().maxRenderPipeLength)
                     needsSync = true;
-                Queue<BlockPos> path = timed.getPipeResult().getPath();
+                Queue<BlockPos> path = timed.getPipePath().getPath();
                 if (this.pos.equals(path.peek()))
                     path.poll(); //remove current block
                 if (path.size() > 0) {
                     BlockPos next = path.peek();
                     assert world != null;
                     BlockEntity entity = world.getBlockEntity(next);
-                    if (!(entity instanceof PipeEntity pipeEntity)) {
-                        tickHelper(toRemove, toAdd, timed);
+                    if (!(entity instanceof PipeEntity pipeEntity) || !(isConnectedToPipe(next, pipeEntity))) {
+                        reroute(toRemove, toAdd, timed);
                     } else {
                         timed.setStuck(false);
                         pipeEntity.addResultToPending(timed);
@@ -622,7 +438,7 @@ public final class PipeEntity extends BlockEntity implements CustomScreenHandler
                     boolean transferred = transferItem(timed);
 
                     if (!transferred) {
-                        tickHelper(toRemove, toAdd, timed);
+                        reroute(toRemove, toAdd, timed);
                     } else
                         toRemove.add(timed);
                 }
@@ -630,21 +446,46 @@ public final class PipeEntity extends BlockEntity implements CustomScreenHandler
         }
 
         items.removeAll(toRemove);
+        networkInformation.removeTrackedPaths(toRemove);
         items.addAll(toAdd);
+        networkInformation.addTrackedPaths(toAdd);
 
+    }
+
+    public static boolean areConnectedPipes(World world, BlockPos current, BlockPos next) {
+        Direction dir = Direction.fromVector(next.subtract(current));
+        if(dir == null)
+            return false;
+
+        BlockState currentState = world.getBlockState(current);
+        BlockState nextState = world.getBlockState(next);
+
+        if(!(currentState.getBlock() instanceof PipeBlock) || !(nextState.getBlock() instanceof PipeBlock))
+            return false;
+
+        return currentState.get(PipeBlock.getProperty(dir)) == PipeSide.CONNECTED
+        && nextState.get(PipeBlock.getProperty(dir.getOpposite())) != PipeSide.NONE;
+    }
+
+    private boolean isConnectedToPipe(BlockPos next, PipeEntity nextEntity) {
+
+        Direction dir = Direction.fromVector(next.subtract(pos));
+        if (dir == null)
+            return false;
+        return getSide(dir) == PipeSide.CONNECTED && nextEntity.getSide(dir.getOpposite()) != PipeSide.NONE;
     }
 
     /**
      * Random helper method to avoid duplicate code. Either marks the current piped item as stuck, or moves it
      * to the next pipe.
      */
-    private void tickHelper(Set<TimedPipeResult> toRemove, Set<TimedPipeResult> toAdd, TimedPipeResult timed) {
-        List<PipeResult> results = findDestinations(timed.getPipeResult().getStack(), getPos(), true, false);
+    private void reroute(Set<TimedPipePath> toRemove, Set<TimedPipePath> toAdd, TimedPipePath timed) {
+        List<PipePath> results = findDestinations(timed.getPipePath().getStack(), getPos(), false);
         if (results.size() == 0) {
             timed.setTime(20);
             timed.setStuck(true);
         } else {
-            TimedPipeResult zero = new TimedPipeResult(results.get(0), ticksPerOperation, false);
+            TimedPipePath zero = new TimedPipePath(results.get(0), ticksPerOperation, false);
             toAdd.add(zero);
             toRemove.add(timed);
         }
@@ -655,7 +496,7 @@ public final class PipeEntity extends BlockEntity implements CustomScreenHandler
      * Tick functions are executed every 50 milliseconds
      */
     public void clientTick() {
-        for (TimedPipeResult timed : items) {
+        for (TimedPipePath timed : items) {
             timed.decreaseTime();
         }
     }
@@ -666,13 +507,13 @@ public final class PipeEntity extends BlockEntity implements CustomScreenHandler
      */
     public void tick() {
 
-        if (network.isEmpty()) { //basically, artifically construct the network of this pipe if its empty;
-            clearNetworkCache();
+        if (networkInformation.isEmpty()) { //basically, artifically construct the network of this pipe if its empty;
+            clearNetworkCache(true);
         }
 
         if (!speedSet && world != null) {
             speedSet = true;
-            ticksPerOperation = world.getBlockState(pos).getBlock() == Registry.FAST_PIPE.get() ? 8 : 20;
+            ticksPerOperation = getCachedState().getBlock() == Registry.FAST_PIPE.get() ? 8 : 20;
         }
 
         if (cooldown > 0)
@@ -691,10 +532,6 @@ public final class PipeEntity extends BlockEntity implements CustomScreenHandler
             needsSync = false;
         }
 
-        if (world == null || (world.getTime() - lastCacheTick > 600)) { //30 secs
-            cache.clear();
-        }
-
         ticksSinceLastCacheClear++;
     }
 
@@ -702,9 +539,9 @@ public final class PipeEntity extends BlockEntity implements CustomScreenHandler
      * Attempts to transfer an item to the destination from the last pipe.
      * Return false if it fails so executing code can handle it
      */
-    private boolean transferItem(TimedPipeResult timedPipeResult) {
+    private boolean transferItem(TimedPipePath timedPipePath) {
 
-        PipeResult processed = timedPipeResult.getPipeResult();
+        PipePath processed = timedPipePath.getPipePath();
         assert world != null;
         Inventory inv = InventoryUtils.getInventoryAt(world, processed.getDestination());
 
@@ -735,17 +572,16 @@ public final class PipeEntity extends BlockEntity implements CustomScreenHandler
         return false;
     }
 
-
     /**
      * The reason to use this method instead of adding directly is to decrease network traffic by not sending an update to the client
      * if this item does not need to be rendered.
      */
-    public void addResultToPending(TimedPipeResult result) {
+    public void addResultToPending(TimedPipePath result) {
         this.items.add(result);
-        if (result.getPipeResult().getLength() < Registry.PIPE_CONFIG.getConfig().maxRenderPipeLength)
+        this.networkInformation.addTrackedPath(result);
+        if (result.getPipePath().getLength() < Registry.PIPE_CONFIG.getConfig().maxRenderPipeLength)
             sync();
     }
-
 
     /**
      * Send data to the client about what to display on the pipe's screen.
@@ -781,7 +617,8 @@ public final class PipeEntity extends BlockEntity implements CustomScreenHandler
         NbtList list = tag.getList("queue", 10);
         items = new HashSet<>();
         for (int i = 0; i < list.size(); i++) {
-            TimedPipeResult result = TimedPipeResult.fromTag(list.getCompound(i));
+            TimedPipePath result = TimedPipePath.fromTag(list.getCompound(i));
+            networkInformation.addTrackedPath(result);
             items.add(result);
         }
     }
@@ -790,8 +627,8 @@ public final class PipeEntity extends BlockEntity implements CustomScreenHandler
         NbtCompound tag = new NbtCompound();
         Config cfg = Registry.PIPE_CONFIG.getConfig();
         NbtList list = new NbtList();
-        for (TimedPipeResult piped : items)
-            if (piped.getPipeResult().getLength() < cfg.maxRenderPipeLength)
+        for (TimedPipePath piped : items)
+            if (piped.getPipePath().getLength() < cfg.maxRenderPipeLength)
                 list.add(piped.toTag(new NbtCompound(), true));
 
         tag.put("queue", list);
@@ -813,90 +650,119 @@ public final class PipeEntity extends BlockEntity implements CustomScreenHandler
     /**
      * Clears the caches of all pipes in the network. Used to invalidate stale cache values
      */
-    public void clearNetworkCache() {
+    public void clearNetworkCache(boolean clearPipeNetwork) {
         //Basically if you try to clear the cache multiple times in 1 tick, i.e. with a large number of blocks being placed at once,
         //The cache will not have regenerated yet, so it'll still be empty BUT you still recur through the whole network, causing lag.
-        //To solve this, I store how long since the last cache clear as an integer.
+        //To solve this, the class stores how long since the last cache clear as an integer.
         if (ticksSinceLastCacheClear == 0)
             return;
 
-        Set<BlockPos> network = new HashSet<>();
-        clearNetworkCacheRipple(network);
+        NetworkInformation information = new NetworkInformation();
+        clearNetworkCacheRipple(information, clearPipeNetwork);
     }
 
-    private void clearNetworkCacheRipple(Set<BlockPos> network) {
-        network.add(pos);
-        this.cache.clear();
-        this.network = network; //note that all pipes in a network SHARE the same network set AND it's mutable. Dangerous, huh?
+    private void clearNetworkCacheRipple(NetworkInformation information, boolean clearPipeNetwork) {
+        information.addPosition(pos);
+        information.addTrackedPaths(items);
+
+        //all pipes in a network share the same information
+        this.networkInformation = information;
         ticksSinceLastCacheClear = 0;
+
+        if (clearPipeNetwork) {
+            pipeNetwork.clear();
+        }
+
         for (Direction direction : Direction.values()) { //For each possible direction
 
-            if ((getSide(direction) == PipeSide.CONNECTED)) { //If this pipe is connected to something
+            PipeSide side = getSide(direction);
+            if ((side == PipeSide.CONNECTED || side == PipeSide.SERVO)) { //If this pipe is connected to something
                 BlockPos pos = this.pos.offset(direction);
 
-                if (network.contains(pos))
+                if (networkInformation.getPositions().contains(pos))
                     continue;
 
                 assert world != null;
                 if (world.getBlockEntity(pos) instanceof PipeEntity pipeEntity) { //If connected to another pipe
                     PipeSide state = world.getBlockState(this.pos.offset(direction)).get(PipeBlock.getProperty(direction.getOpposite()));
-                    if (state == PipeSide.CONNECTED || state == PipeSide.SERVO) {
-                        pipeEntity.clearNetworkCacheRipple(network);
+                    if (state == PipeSide.CONNECTED || (state == PipeSide.SERVO && !(side == PipeSide.SERVO))) {
+                        pipeEntity.clearNetworkCacheRipple(networkInformation, clearPipeNetwork);
                     }
                 }
             }
         }
     }
 
-
     /**
      * Event that's automagically called when a filter update packet is received so the cache can be cleared.
      */
     @Override
     public void onPacketReceived() {
-        clearNetworkCache();
+        clearNetworkCache(false);
     }
 
-    private record CacheKey(@NotNull ItemStack stack, @NotNull BlockPos start, boolean one) {
+    private PipeNetworkRoutes getNetwork(BlockPos start) {
 
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o)
-                return true;
-            if (o == null || getClass() != o.getClass())
-                return false;
-
-            CacheKey cacheKey = (CacheKey) o;
-
-            if (one != cacheKey.one) return false;
-            if (!start.equals(cacheKey.start))
-                return false;
-            return ItemStack.areEqual(stack, cacheKey.stack);
+        Direction animate = null;
+        for (Direction dir : Direction.values()) {
+            if (getPos().offset(dir).equals(start))
+                animate = dir;
         }
-
-        @Override
-        public int hashCode() {
-            int result = net.minecraft.util.registry.Registry.ITEM.getId(stack.getItem()).hashCode(); // O(1)
-            result = 31 * result + start.hashCode();
-            result = 31 * result + (one ? 1 : 0);
+        PipeNetworkRoutes result = new PipeNetworkRoutes.RecursiveNode(this::getFilter, this::isRoundRobinMode);
+        if (world == null)
             return result;
+
+        //The supplier is used so recursive nodes aren't added early and prioritized a bit extra even
+        //when a terminal is closer
+        record TempPipeData(StackFreePath path, Supplier<PipeNetworkRoutes> parent) {
         }
+
+        Deque<TempPipeData> toVisit = new LinkedList<>();
+        Set<BlockPos> visited = new HashSet<>();
+        Set<VisitedAngle> inventorySides = new HashSet<>();
+        toVisit.add(new TempPipeData(new StackFreePath(this.getPos(), new LinkedList<>(), Direction.NORTH, animate), () -> result));
+
+        while (toVisit.size() > 0) {
+            TempPipeData popped = toVisit.pop();
+            BlockPos current = popped.path().getDestination();
+            Queue<BlockPos> path = popped.path().getPath();
+            PipeNetworkRoutes parent = popped.parent.get();
+
+            if (parent.isTerminal())
+                continue;
+
+            if (!current.equals(start)) {
+                if (InventoryUtils.getInventoryAt(world, current) != null) {
+                    VisitedAngle side = new VisitedAngle(popped.path().getDirection(), current);
+                    if (!(inventorySides.contains(side))) {
+                        parent.addTerminal(popped.path());
+                        inventorySides.add(side);
+                    }
+                }
+            }
+
+            if (!parent.isTerminal() && world.getBlockEntity(current) instanceof PipeEntity) {
+                Collection<ValidDirection> neighbors = PipeEntity.getValidDirections(current, world);
+                for (ValidDirection transferResult : neighbors) {
+                    Direction direction = transferResult.direction();
+                    if ((!visited.contains(current.offset(direction)) || InventoryUtils.getInventoryAt(world, current.offset(direction)) != null)) {
+
+                        LinkedList<BlockPos> newPath = new LinkedList<>(path);
+                        newPath.add(current);
+
+                        if (transferResult.roundRobin() == null || transferResult.filter() == null) {
+                            toVisit.add(new TempPipeData(new StackFreePath(current.offset(direction), newPath, direction.getOpposite(), animate), () -> parent));
+                        } else {
+                            toVisit.add(new TempPipeData(new StackFreePath(current.offset(direction), newPath, direction.getOpposite(), animate), () -> parent.addNonTerminal(transferResult.filter(), transferResult.roundRobin())));
+                        }
+                    }
+                }
+            }
+            visited.add(current);
+        }
+
+        return result;
     }
-
-
-    /**
-     * A cache value stores both the time it was calculated and the actual value.
-     * The reason for this is that I arbitrarily told the cache to store up to 10 values to save memory from being polluted
-     * by unused cache values.
-     * This becomes a problem if the pipe is set on round-robin mode and is transmitting to
-     * more than 10 outputs, causing the cache to become useless. The solution to this issue is to
-     * not remove cache values that are too new, thus preserving the integrity of the cache.
-     */
-    private record CacheResult(long time, List<PipeResult> value) {
-
-    }
-
 
     /**
      * When doing the BFS search, the pos stores the actual position while the direction stores
@@ -926,28 +792,10 @@ public final class PipeEntity extends BlockEntity implements CustomScreenHandler
     }
 
     /**
-     * the WrappedItemStack class is used to give ItemStacks a hashCode and equals
+     * roundRobin is a supplier so changes in the boolean are detected live rather than invalidating the cache
+     * same thing with filter inventory to counter chunk unloading and reloading
      */
-    private record WrappedItemStack(ItemStack stack) {
-        @Override
-        public boolean equals(Object wrapped) {
-            if (this == wrapped)
-                return true;
-
-            if (wrapped == null || getClass() != wrapped.getClass())
-                return false;
-
-            return ItemStack.areEqual(this.stack, ((WrappedItemStack) wrapped).stack);
-        }
-
-        @Override
-        public int hashCode() {
-            if (stack == null)
-                return 0;
-
-            return net.minecraft.util.registry.Registry.ITEM.getRawId(stack.getItem()) +
-                    stack.getCount() * 31 +
-                    (stack.getNbt() != null ? stack.getNbt().hashCode() * 31 * 31 : 0);
-        }
+    private record ValidDirection(Direction direction, Supplier<FilterInventory> filter, Supplier<Boolean> roundRobin) {
     }
+
 }

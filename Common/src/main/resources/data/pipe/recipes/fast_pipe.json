@@ -1,9 +1,9 @@
 {
   "type": "minecraft:crafting_shaped",
   "pattern": [
-    "g g",
+    "glg",
     "gpg",
-    "g g"
+    "glg"
   ],
   "key": {
     "g": {
@@ -11,6 +11,9 @@
     },
     "p": {
       "item": "pipe:item_pipe"
+    },
+    "l": {
+      "item" : "minecraft:glass_pane"
     }
   },
   "result": {

@@ -7,6 +7,62 @@
     },
     {
       "when": {
+        "pipe_north": "none"
+      },
+      "apply": {
+        "model": "pipe:block/item_pipe/panel",
+        "x": 270
+      }
+    },
+    {
+      "when": {
+        "pipe_west": "none"
+      },
+      "apply": {
+        "model": "pipe:block/item_pipe/panel",
+        "x": 270,
+        "y": 270
+      }
+    },
+    {
+      "when": {
+        "pipe_south": "none"
+      },
+      "apply": {
+        "model": "pipe:block/item_pipe/panel",
+        "x": 270,
+        "y": 180
+      }
+    },
+    {
+      "when": {
+        "pipe_east": "none"
+      },
+      "apply": {
+        "model": "pipe:block/item_pipe/panel",
+        "x": 270,
+        "y": 90
+      }
+    },
+    {
+      "when": {
+        "pipe_up": "none"
+      },
+      "apply": {
+        "model": "pipe:block/item_pipe/panel",
+        "x": 180
+      }
+    },
+    {
+      "when": {
+        "pipe_down": "none"
+      },
+      "apply": {
+        "model": "pipe:block/item_pipe/panel"
+      }
+    },
+    {
+      "when": {
         "pipe_north": "connected"
       },
       "apply": {
