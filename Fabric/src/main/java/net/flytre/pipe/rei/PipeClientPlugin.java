@@ -8,7 +8,7 @@ import net.flytre.pipe.client.PipeScreen;
 
 import java.util.List;
 
-public class PipePlugin implements REIClientPlugin {
+public class PipeClientPlugin implements REIClientPlugin {
 
     @Override
     public void registerScreens(ScreenRegistry registry) {

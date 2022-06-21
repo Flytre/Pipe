@@ -21,7 +21,6 @@ import net.minecraft.network.listener.ClientPlayPacketListener;
 import net.minecraft.network.packet.s2c.play.BlockEntityUpdateS2CPacket;
 import net.minecraft.screen.ScreenHandler;
 import net.minecraft.text.Text;
-import net.minecraft.text.TranslatableText;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Direction;
 import net.minecraft.world.World;
@@ -597,7 +596,7 @@ public final class PipeEntity extends BlockEntity implements CustomScreenHandler
 
     @Override
     public Text getDisplayName() {
-        return new TranslatableText("block.pipe.item_pipe");
+        return Text.translatable("block.pipe.item_pipe");
     }
 
     /**

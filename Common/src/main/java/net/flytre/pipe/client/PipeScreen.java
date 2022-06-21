@@ -11,7 +11,6 @@ import net.minecraft.client.render.GameRenderer;
 import net.minecraft.client.util.math.MatrixStack;
 import net.minecraft.entity.player.PlayerInventory;
 import net.minecraft.text.Text;
-import net.minecraft.text.TranslatableText;
 import net.minecraft.util.Identifier;
 
 public class PipeScreen extends FilteredScreen<PipeHandler> {
@@ -29,10 +28,10 @@ public class PipeScreen extends FilteredScreen<PipeHandler> {
     }
 
     private void onSynced() {
-        addButton(handler.getFilterType(), 0, MODE_BUTTON, BlockFilterModeC2SPacket::new, handler::getPos, new TranslatableText("block.pipe.item_pipe.whitelist"), new TranslatableText("block.pipe.item_pipe.blacklist"));
-        addButton(handler.getRoundRobinMode(), 1, PIPE_MODE_BUTTON, PipeModeC2SPacket::new, handler::getPos, new TranslatableText("block.pipe.item_pipe.closest"), new TranslatableText("block.pipe.item_pipe.round_robin"));
-        addButton(handler.getModMatch(), 2, MOD_BUTTON, BlockModMatchC2SPacket::new, handler::getPos, new TranslatableText("block.pipe.item_pipe.mod_match.false"), new TranslatableText("block.pipe.item_pipe.mod_match.true"));
-        addButton(handler.getNbtMatch(), 3, NBT_BUTTON, BlockNbtMatchC2SPacket::new, handler::getPos, new TranslatableText("block.pipe.item_pipe.nbt_match.false"), new TranslatableText("block.pipe.item_pipe.nbt_match.true"));
+        addButton(handler.getFilterType(), 0, MODE_BUTTON, BlockFilterModeC2SPacket::new, handler::getPos, Text.translatable("block.pipe.item_pipe.whitelist"), Text.translatable("block.pipe.item_pipe.blacklist"));
+        addButton(handler.getRoundRobinMode(), 1, PIPE_MODE_BUTTON, PipeModeC2SPacket::new, handler::getPos, Text.translatable("block.pipe.item_pipe.closest"), Text.translatable("block.pipe.item_pipe.round_robin"));
+        addButton(handler.getModMatch(), 2, MOD_BUTTON, BlockModMatchC2SPacket::new, handler::getPos, Text.translatable("block.pipe.item_pipe.mod_match.false"), Text.translatable("block.pipe.item_pipe.mod_match.true"));
+        addButton(handler.getNbtMatch(), 3, NBT_BUTTON, BlockNbtMatchC2SPacket::new, handler::getPos, Text.translatable("block.pipe.item_pipe.nbt_match.false"), Text.translatable("block.pipe.item_pipe.nbt_match.true"));
 
     }
 

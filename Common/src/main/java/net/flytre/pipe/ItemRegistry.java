@@ -9,7 +9,7 @@ import net.minecraft.block.BlockState;
 import net.minecraft.block.entity.BlockEntity;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.item.Item;
-import net.minecraft.text.TranslatableText;
+import net.minecraft.text.Text;
 import net.minecraft.util.hit.BlockHitResult;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.world.World;
@@ -39,7 +39,7 @@ public class ItemRegistry {
                 BlockEntity entity = world.getBlockEntity(hitResult.getBlockPos());
                 if (entity instanceof PipeEntity) {
                     boolean isRoundRobin = ((PipeEntity) entity).isRoundRobinMode();
-                    player.sendMessage(new TranslatableText("item.pipe.wrench.2").append(": " + isRoundRobin), true);
+                    player.sendMessage(Text.translatable("item.pipe.wrench.2").append(": " + isRoundRobin), true);
                 }
             }
         });
@@ -48,7 +48,7 @@ public class ItemRegistry {
             if (block instanceof PipeBlock && blockEntity instanceof PipeEntity) {
                 wrenched = ((PipeEntity) blockEntity).wrenched.get(hitResult.getSide());
 
-                player.sendMessage(new TranslatableText("item.pipe.wrench.1").append(" (" + hitResult.getSide().name() + "): " + wrenched), true);
+                player.sendMessage(Text.translatable("item.pipe.wrench.1").append(" (" + hitResult.getSide().name() + "): " + wrenched), true);
             }
         });
     }
