@@ -179,12 +179,14 @@ public final class PipeEntity extends BlockEntity implements CustomScreenHandler
 
                 if (InventoryUtils.canInsert(destination, copy, slot, direction.getOpposite())) {
                     if (slotStack.isEmpty()) {
-                        if (copy.getCount() < 64)
+                        if (copy.getCount() < destination.getMaxCountPerStack())
                             return true;
                         else
-                            copy.decrement(64);
+                            copy.decrement(destination.getMaxCountPerStack());
                     } else if (InventoryUtils.canMergeItems(slotStack, copy)) {
-                        int target = slotStack.getMaxCount() - slotStack.getCount();
+                        int slotMaxCount = slotStack.getMaxCount() == 64 ? Math.max(slotStack.getCount(),destination.getMaxCountPerStack()) : slotStack.getMaxCount();
+                        int target = slotMaxCount - slotStack.getCount();
+
                         if (copy.getCount() <= target)
                             return true;
                         else
@@ -513,7 +515,8 @@ public final class PipeEntity extends BlockEntity implements CustomScreenHandler
 
         if (!speedSet && world != null) {
             speedSet = true;
-            ticksPerOperation = getCachedState().getBlock() == Registry.FAST_PIPE.get() ? 8 : 20;
+            Block block = getCachedState().getBlock();
+            ticksPerOperation = block == Registry.FAST_PIPE.get() ? 8 : (block == Registry.LIGHTNING_PIPE.get() ? 3 : 20);
         }
 
         if (cooldown > 0)
@@ -548,10 +551,6 @@ public final class PipeEntity extends BlockEntity implements CustomScreenHandler
         if (inv == null)
             return false;
 
-        if (InventoryUtils.isInventoryFull(inv, processed.getDirection())) {
-            return false;
-        }
-
         int[] slots = InventoryUtils.getAvailableSlots(inv, processed.getDirection()).toArray();
         for (int i : slots) {
             ItemStack currentStack = inv.getStack(i);
@@ -561,7 +560,8 @@ public final class PipeEntity extends BlockEntity implements CustomScreenHandler
                     inv.markDirty();
                     return true;
                 } else if (InventoryUtils.canMergeItems(currentStack, processed.getStack())) {
-                    if (currentStack.getCount() < currentStack.getMaxCount()) {
+                    int slotMaxCount = currentStack.getMaxCount() == 64 ? Math.max(currentStack.getCount(),inv.getMaxCountPerStack()) : currentStack.getMaxCount();
+                    if (currentStack.getCount() < slotMaxCount) {
                         currentStack.increment(1);
                         inv.markDirty();
                         return true;

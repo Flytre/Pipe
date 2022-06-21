@@ -4,6 +4,7 @@ import net.flytre.flytre_lib.api.base.compat.wrench.WrenchItem;
 import net.flytre.flytre_lib.api.storage.connectable.ItemPipeConnectable;
 import net.flytre.flytre_lib.loader.CustomScreenHandlerFactory;
 import net.flytre.flytre_lib.loader.ScreenLoaderUtils;
+import net.flytre.pipe.item.ServoItem;
 import net.minecraft.block.*;
 import net.minecraft.block.entity.BlockEntity;
 import net.minecraft.block.entity.BlockEntityTicker;
@@ -107,6 +108,17 @@ public class PipeBlock extends BlockWithEntity implements ItemPipeConnectable {
         };
     }
 
+
+    public static ServoItem getServoFor(BlockState state) {
+        if(state.getBlock() == Registry.ITEM_PIPE.get())
+            return ItemRegistry.SERVO.get();
+        if(state.getBlock() == Registry.FAST_PIPE.get())
+            return ItemRegistry.FAST_SERVO.get();
+        if(state.getBlock() == Registry.LIGHTNING_PIPE.get())
+            return ItemRegistry.LIGHTNING_SERVO.get();
+        return null;
+    }
+
     @Override
     public ActionResult onUse(BlockState state, World world, BlockPos pos, PlayerEntity player, Hand hand, BlockHitResult hit) {
 
@@ -116,13 +128,15 @@ public class PipeBlock extends BlockWithEntity implements ItemPipeConnectable {
 
         Item item = player.getStackInHand(hand).getItem();
 
-        if (!(item == ItemRegistry.SERVO.get()) && !(item instanceof WrenchItem)) {
+        Item servoItem = getServoFor(state);
+
+        if (!(item == servoItem) && !(item instanceof WrenchItem)) {
             return attemptOpenScreen(world, state, pos, (ServerPlayerEntity) player);
         }
         Direction side = hit.getSide();
         PipeSide current = state.get(getProperty(side));
         //SERVO
-        if (item == ItemRegistry.SERVO.get())
+        if (item == servoItem)
             useServo(world, state, pos, player, hand, side, current);
 
 
@@ -137,7 +151,7 @@ public class PipeBlock extends BlockWithEntity implements ItemPipeConnectable {
     private void useWrench(World world, BlockState state, BlockPos pos, PlayerEntity player, Direction side, PipeSide current) {
 
         if (current == PipeSide.SERVO) {
-            ItemScatterer.spawn(world, pos.getX(), pos.getY(), pos.getZ(), new ItemStack(ItemRegistry.SERVO.get()));
+            ItemScatterer.spawn(world, pos.getX(), pos.getY(), pos.getZ(), new ItemStack(getServoFor(state)));
             world.setBlockState(pos, state.with(getProperty(side), PipeSide.NONE));
             setWrenched(world, pos, side, false);
             return;
@@ -283,7 +297,7 @@ public class PipeBlock extends BlockWithEntity implements ItemPipeConnectable {
         if (!state.isOf(newState.getBlock())) {
             for (Direction dir : Direction.values())
                 if (state.get(getProperty(dir)) == PipeSide.SERVO)
-                    ItemScatterer.spawn(world, pos.getX(), pos.getY(), pos.getZ(), new ItemStack(ItemRegistry.SERVO.get()));
+                    ItemScatterer.spawn(world, pos.getX(), pos.getY(), pos.getZ(), new ItemStack(getServoFor(state)));
             if (!world.isClient) {
                 BlockEntity entity = world.getBlockEntity(pos);
                 if (entity instanceof PipeEntity pipeEntity) {

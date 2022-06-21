@@ -1,7 +1,10 @@
 {
   "block.pipe.item_pipe": "Item Pipe",
   "block.pipe.fast_pipe": "Fast Pipe",
+  "block.pipe.lightning_pipe": "Lightning Pipe",
   "item.pipe.servo": "Servo",
+  "item.pipe.fast_servo": "Fast Servo",
+  "item.pipe.lightning_servo": "Lightning Servo",
   "item.pipe.wrench": "Wrench",
   "itemGroup.pipe.all" : "Pipe",
   "item.pipe.wrench.1": "Connections Blocked",

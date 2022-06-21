@@ -1,0 +1,8 @@
+{
+	"parent" : "pipe:block/item_pipe/servo",
+	"textures": {
+		"1": "pipe:block/lightning_pipe/node",
+		"2": "block/light_blue_stained_glass",
+		"particle": "pipe:block/lightning_pipe/connector"
+	}
+}

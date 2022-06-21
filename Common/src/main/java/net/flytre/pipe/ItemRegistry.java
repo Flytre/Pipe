@@ -17,7 +17,9 @@ import net.minecraft.world.World;
 import java.util.function.Supplier;
 
 public class ItemRegistry {
-    public static final Supplier<Item> SERVO = register(() -> new ServoItem(new Item.Settings().group(Registry.TAB)), "servo");
+    public static final Supplier<ServoItem> SERVO = register(() -> new ServoItem(new Item.Settings().group(Registry.TAB)), "servo");
+    public static final Supplier<ServoItem> FAST_SERVO = register(() -> new ServoItem(new Item.Settings().group(Registry.TAB)), "fast_servo");
+    public static final Supplier<ServoItem> LIGHTNING_SERVO = register(() -> new ServoItem(new Item.Settings().group(Registry.TAB)), "lightning_servo");
     public static final Supplier<Item> WRENCH = register(() -> new WrenchItem(new Item.Settings().group(Registry.TAB).maxCount(1)), "wrench");
 
     public static void init() {

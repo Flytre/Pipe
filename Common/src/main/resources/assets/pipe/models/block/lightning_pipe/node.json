@@ -1,0 +1,7 @@
+{
+  "parent": "pipe:block/item_pipe/node",
+  "textures": {
+    "particle": "pipe:block/lightning_pipe/node",
+    "texture": "pipe:block/lightning_pipe/node"
+  }
+}

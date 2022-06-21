@@ -28,6 +28,7 @@ public class Registry {
 
     public static final Supplier<Block> ITEM_PIPE = registerBlock(() -> new PipeBlock(AbstractBlock.Settings.of(Material.METAL).hardness(0.9f)), "item_pipe");
     public static final Supplier<Block> FAST_PIPE = registerBlock(() -> new PipeBlock(AbstractBlock.Settings.of(Material.METAL).hardness(0.6f)), "fast_pipe");
+    public static final Supplier<Block> LIGHTNING_PIPE = registerBlock(() -> new PipeBlock(AbstractBlock.Settings.of(Material.METAL).hardness(1.2f)), "lightning_pipe");
 
 
     public static final ConfigHandler<Config> PIPE_CONFIG = new ConfigHandler<>(new Config(), "pipe");
@@ -46,7 +47,7 @@ public class Registry {
 
 
     public static void init() {
-        ITEM_PIPE_BLOCK_ENTITY = LoaderAgnosticRegistry.registerBlockEntityType(() -> BlockEntityFactory.createBuilder(PipeEntity::new, ITEM_PIPE.get(), FAST_PIPE.get()).build(null), "pipe", "item_pipe");
+        ITEM_PIPE_BLOCK_ENTITY = LoaderAgnosticRegistry.registerBlockEntityType(() -> BlockEntityFactory.createBuilder(PipeEntity::new, ITEM_PIPE.get(), FAST_PIPE.get(),LIGHTNING_PIPE.get()).build(null), "pipe", "item_pipe");
         ItemRegistry.init();
         ITEM_PIPE_SCREEN_HANDLER = LoaderAgnosticRegistry.registerExtendedScreen(PipeHandler::new, "pipe", "item_pipe");
 
