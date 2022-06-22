@@ -1,12 +1,12 @@
-package net.flytre.pipe.client;
+package net.flytre.pipe.impl.client;
 
 import com.mojang.blaze3d.systems.RenderSystem;
 import net.flytre.flytre_lib.api.storage.inventory.filter.FilteredScreen;
 import net.flytre.flytre_lib.api.storage.inventory.filter.packet.BlockFilterModeC2SPacket;
 import net.flytre.flytre_lib.api.storage.inventory.filter.packet.BlockModMatchC2SPacket;
 import net.flytre.flytre_lib.api.storage.inventory.filter.packet.BlockNbtMatchC2SPacket;
-import net.flytre.pipe.PipeHandler;
-import net.flytre.pipe.network.PipeModeC2SPacket;
+import net.flytre.pipe.impl.network.PipeHandler;
+import net.flytre.pipe.impl.network.PipeModeC2SPacket;
 import net.minecraft.client.render.GameRenderer;
 import net.minecraft.client.util.math.MatrixStack;
 import net.minecraft.entity.player.PlayerInventory;

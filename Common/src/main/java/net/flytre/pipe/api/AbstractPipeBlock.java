@@ -1,20 +1,17 @@
-package net.flytre.pipe;
+package net.flytre.pipe.api;
 
 import net.flytre.flytre_lib.api.base.compat.wrench.WrenchItem;
-import net.flytre.flytre_lib.api.storage.connectable.ItemPipeConnectable;
 import net.flytre.flytre_lib.loader.CustomScreenHandlerFactory;
 import net.flytre.flytre_lib.loader.ScreenLoaderUtils;
-import net.flytre.pipe.item.ServoItem;
+import net.flytre.pipe.impl.ItemPipeEntity;
 import net.minecraft.block.*;
 import net.minecraft.block.entity.BlockEntity;
 import net.minecraft.block.entity.BlockEntityTicker;
 import net.minecraft.block.entity.BlockEntityType;
 import net.minecraft.entity.ai.pathing.NavigationType;
 import net.minecraft.entity.player.PlayerEntity;
-import net.minecraft.inventory.Inventory;
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemPlacementContext;
-import net.minecraft.item.ItemStack;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.state.StateManager;
 import net.minecraft.state.property.EnumProperty;
@@ -33,15 +30,10 @@ import net.minecraft.world.WorldAccess;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.Map;
+import java.util.function.Supplier;
 
-/**
- * Blocks represent each type of block added to Minecraft. There is only ONE block object for each type of block, i.e. one
- * object represents sand (Blocks.SAND), one for dirt, one for oak logs, one for diamond ore, etc. Block object classes store
- * data about specific categories of blocks. For example, a torch can be lit or extinguished, a door can be open or closed, a log
- * can be placed 3 different ways so that the bark is on different sides, etc. Each individual block in the game is represented as
- * a BlockState, which stores the Block along with its current STATE (i.e. a lever facing along the X axis in the OFF position).
- */
-public class PipeBlock extends BlockWithEntity implements ItemPipeConnectable {
+public abstract class AbstractPipeBlock<C> extends BlockWithEntity {
+
     public static final EnumProperty<PipeSide> UP;
     public static final EnumProperty<PipeSide> DOWN;
     public static final EnumProperty<PipeSide> NORTH;
@@ -86,7 +78,8 @@ public class PipeBlock extends BlockWithEntity implements ItemPipeConnectable {
         S_SOUTH = Block.createCuboidShape(3.5, 3.5, 14, 12.5, 12.5, 16);
     }
 
-    public PipeBlock(Settings settings) {
+
+    public AbstractPipeBlock(Settings settings) {
         super(settings);
         this.setDefaultState(this.stateManager.getDefaultState()
                 .with(UP, PipeSide.NONE)
@@ -108,16 +101,46 @@ public class PipeBlock extends BlockWithEntity implements ItemPipeConnectable {
         };
     }
 
+    public static boolean areConnectedPipes(World world, BlockPos current, BlockPos next) {
+        Direction dir = Direction.fromVector(next.subtract(current));
+        if (dir == null)
+            return false;
 
-    public static ServoItem getServoFor(BlockState state) {
-        if(state.getBlock() == Registry.ITEM_PIPE.get())
-            return ItemRegistry.SERVO.get();
-        if(state.getBlock() == Registry.FAST_PIPE.get())
-            return ItemRegistry.FAST_SERVO.get();
-        if(state.getBlock() == Registry.LIGHTNING_PIPE.get())
-            return ItemRegistry.LIGHTNING_SERVO.get();
-        return null;
+        BlockState currentState = world.getBlockState(current);
+        BlockState nextState = world.getBlockState(next);
+
+        if (!areSameTypeOfPipe(currentState, nextState))
+            return false;
+
+        return currentState.get(getProperty(dir)) == PipeSide.CONNECTED
+                && nextState.get(getProperty(dir.getOpposite())) != PipeSide.NONE;
     }
+
+    public static boolean areSameTypeOfPipe(BlockState one, BlockState two) {
+        if (!(one.getBlock() instanceof AbstractPipeBlock<?> block1) || !(two.getBlock() instanceof AbstractPipeBlock<?> block2))
+            return false;
+        return block1.getResourceHandler().getResourceClass() == block2.getResourceHandler().getResourceClass();
+    }
+
+    public boolean areSameTypeOfPipe(Block other) {
+        if (!(other instanceof AbstractPipeBlock<?> block2))
+            return false;
+        return this.getResourceHandler().getResourceClass() == ((AbstractPipeBlock<?>) other).getResourceHandler().getResourceClass();
+    }
+
+
+    /**
+     * The servo item needed to put a servo on the pipe
+     */
+    protected abstract ServoItem getServoFor(BlockState state);
+
+    protected abstract ResourceHandler<C, ?> getResourceHandler();
+
+    protected abstract PipeLogic<C> getPipeLogic();
+
+    protected abstract void scatterResources(World world, BlockPos pos);
+
+    protected abstract Supplier<BlockEntityType<? extends AbstractPipeEntity<C, ?>>> getBlockEntityType();
 
     @Override
     public ActionResult onUse(BlockState state, World world, BlockPos pos, PlayerEntity player, Hand hand, BlockHitResult hit) {
@@ -140,7 +163,7 @@ public class PipeBlock extends BlockWithEntity implements ItemPipeConnectable {
             useServo(world, state, pos, player, hand, side, current);
 
 
-        if (item == ItemRegistry.WRENCH.get()) {
+        if (item instanceof WrenchItem) {
             useWrench(world, state, pos, player, side, current);
         }
 
@@ -151,7 +174,7 @@ public class PipeBlock extends BlockWithEntity implements ItemPipeConnectable {
     private void useWrench(World world, BlockState state, BlockPos pos, PlayerEntity player, Direction side, PipeSide current) {
 
         if (current == PipeSide.SERVO) {
-            ItemScatterer.spawn(world, pos.getX(), pos.getY(), pos.getZ(), new ItemStack(getServoFor(state)));
+            ItemScatterer.spawn(world, pos.getX(), pos.getY(), pos.getZ(), getServoFor(state).getDefaultStack());
             world.setBlockState(pos, state.with(getProperty(side), PipeSide.NONE));
             setWrenched(world, pos, side, false);
             return;
@@ -161,7 +184,7 @@ public class PipeBlock extends BlockWithEntity implements ItemPipeConnectable {
         BlockState offsetState = world.getBlockState(pos.offset(side));
 
         //if this pipe has no connection and the other pipe is wrenched and this one is not, un-wrench the other side
-        if (offsetState.getBlock() instanceof PipeBlock && current == PipeSide.NONE && !isWrenched(world, pos, side) && isWrenched(world, pos.offset(side), side.getOpposite())) {
+        if (areSameTypeOfPipe(offsetState.getBlock()) && current == PipeSide.NONE && !isWrenched(world, pos, side) && isWrenched(world, pos.offset(side), side.getOpposite())) {
             world.setBlockState(pos.offset(side), offsetState.with(getProperty(side.getOpposite()), PipeSide.CONNECTED));
             world.setBlockState(pos, state.with(getProperty(side), PipeSide.CONNECTED));
             setWrenched(world, pos.offset(side), side.getOpposite(), false);
@@ -175,7 +198,7 @@ public class PipeBlock extends BlockWithEntity implements ItemPipeConnectable {
 
             //if this pipe is not wrenched and the other pipe does not have a servo
             //then the other pipe should now have no connection if it didn't before
-            if (offsetState.getBlock() instanceof PipeBlock && offsetState.get(getProperty(side.getOpposite())) != PipeSide.SERVO) {
+            if (areSameTypeOfPipe(offsetState.getBlock()) && offsetState.get(getProperty(side.getOpposite())) != PipeSide.SERVO) {
                 world.setBlockState(pos.offset(side), offsetState.with(getProperty(side.getOpposite()), PipeSide.NONE));
             }
             return;
@@ -186,7 +209,7 @@ public class PipeBlock extends BlockWithEntity implements ItemPipeConnectable {
         setWrenched(world, pos, side, false);
         Block block = offsetState.getBlock();
         BlockEntity entity = world.getBlockEntity(pos.offset(side));
-        if (isConnectable(block, entity))
+        if (isConnectable(world, pos.offset(side), side.getOpposite(), block, entity))
             world.setBlockState(pos, state.with(getProperty(side), PipeSide.CONNECTED));
 
 
@@ -260,15 +283,18 @@ public class PipeBlock extends BlockWithEntity implements ItemPipeConnectable {
         if (world.isClient())
             return state;
 
-        Block neighbor = world.getBlockState(posFrom).getBlock();
+        BlockState neighborState = world.getBlockState(posFrom);
+        Block neighbor = neighborState.getBlock();
         if (state.get(getProperty(direction)) == PipeSide.SERVO || isWrenched(world, pos, direction))
             return state;
 
-        if (neighbor instanceof PipeBlock && isWrenched(world, posFrom, direction.getOpposite())) {
+        if (areSameTypeOfPipe(state, neighborState) && isWrenched(world, posFrom, direction.getOpposite())) {
             return state;
         }
 
-        return state.with(getProperty(direction), isConnectable(neighbor, world.getBlockEntity(posFrom)) ? PipeSide.CONNECTED : PipeSide.NONE);
+        if (world instanceof World wrld)
+            return state.with(getProperty(direction), isConnectable(wrld, posFrom, Direction.fromVector(posFrom.subtract(pos)), neighbor, world.getBlockEntity(posFrom)) ? PipeSide.CONNECTED : PipeSide.NONE);
+        return state;
     }
 
     @Override
@@ -279,17 +305,17 @@ public class PipeBlock extends BlockWithEntity implements ItemPipeConnectable {
             BlockState neighborState = ctx.getWorld().getBlockState(blockPos.offset(direction));
             Block neighbor = neighborState.getBlock();
 
-            if (neighbor instanceof PipeBlock && isWrenched(ctx.getWorld(), blockPos.offset(direction), direction.getOpposite()))
+            if (areSameTypeOfPipe(state, neighborState) && isWrenched(ctx.getWorld(), blockPos.offset(direction), direction.getOpposite()))
                 state = state.with(getProperty(direction), PipeSide.NONE);
             else
-                state = state.with(getProperty(direction), isConnectable(neighbor, ctx.getWorld().getBlockEntity(blockPos.offset(direction))) ? PipeSide.CONNECTED : PipeSide.NONE);
+                state = state.with(getProperty(direction), isConnectable(ctx.getWorld(), blockPos.offset(direction), direction, neighbor, ctx.getWorld().getBlockEntity(blockPos.offset(direction))) ? PipeSide.CONNECTED : PipeSide.NONE);
 
         }
         return state;
     }
 
-    private boolean isConnectable(Block block, BlockEntity entity) {
-        return block instanceof ItemPipeConnectable || block instanceof InventoryProvider || (entity instanceof Inventory && ((Inventory) entity).size() > 0);
+    private boolean isConnectable(World world, BlockPos pos, Direction direction, Block block, BlockEntity entity) {
+        return areSameTypeOfPipe(block) || getPipeLogic().getPipeConnectable().isConnectable(world, pos, direction, block, entity);
     }
 
     @Override
@@ -297,14 +323,9 @@ public class PipeBlock extends BlockWithEntity implements ItemPipeConnectable {
         if (!state.isOf(newState.getBlock())) {
             for (Direction dir : Direction.values())
                 if (state.get(getProperty(dir)) == PipeSide.SERVO)
-                    ItemScatterer.spawn(world, pos.getX(), pos.getY(), pos.getZ(), new ItemStack(getServoFor(state)));
+                    ItemScatterer.spawn(world, pos.getX(), pos.getY(), pos.getZ(), getServoFor(state).getDefaultStack());
             if (!world.isClient) {
-                BlockEntity entity = world.getBlockEntity(pos);
-                if (entity instanceof PipeEntity pipeEntity) {
-                    for (ItemStack stack : pipeEntity.getQueuedStacks()) {
-                        ItemScatterer.spawn(world, pos.getX(), pos.getY(), pos.getZ(), stack);
-                    }
-                }
+                scatterResources(world, pos);
             }
         }
         super.onStateReplaced(state, world, pos, newState, moved);
@@ -321,15 +342,14 @@ public class PipeBlock extends BlockWithEntity implements ItemPipeConnectable {
         return false;
     }
 
-
     @Override
     public @Nullable BlockEntity createBlockEntity(BlockPos pos, BlockState state) {
-        return new PipeEntity(pos, state);
+        return new ItemPipeEntity(pos, state);
     }
 
     private void openScreen(World world, BlockPos pos, ServerPlayerEntity player) {
         BlockEntity blockEntity = world.getBlockEntity(pos);
-        if (blockEntity instanceof PipeEntity) {
+        if (blockEntity instanceof ItemPipeEntity) {
             boolean bl = false;
             BlockState state = world.getBlockState(pos);
             for (Direction dir : Direction.values()) {
@@ -344,25 +364,25 @@ public class PipeBlock extends BlockWithEntity implements ItemPipeConnectable {
 
     }
 
-
     private boolean isWrenched(WorldAccess world, BlockPos pos, Direction d) {
         BlockEntity b = world.getBlockEntity(pos);
-        if (!(b instanceof PipeEntity))
+        if (!(b instanceof ItemPipeEntity))
             return false;
-        return ((PipeEntity) b).wrenched.get(d);
+        return ((ItemPipeEntity) b).wrenched.get(d);
     }
 
     private void setWrenched(WorldAccess world, BlockPos pos, Direction d, boolean value) {
         BlockEntity b = world.getBlockEntity(pos);
-        if (!(b instanceof PipeEntity))
+        if (!(b instanceof ItemPipeEntity))
             return;
-        ((PipeEntity) b).wrenched.put(d, value);
+        ((ItemPipeEntity) b).wrenched.put(d, value);
     }
+
 
     @Nullable
     @Override
     public <T extends BlockEntity> BlockEntityTicker<T> getTicker(World world, BlockState state, BlockEntityType<T> type) {
-        return checkType(type, Registry.ITEM_PIPE_BLOCK_ENTITY.get(), (world2, pos, state2, entity) -> {
+        return checkType(type, getBlockEntityType().get(), (world2, pos, state2, entity) -> {
             if (!world.isClient) entity.tick();
             else entity.clientTick();
         });
@@ -385,12 +405,14 @@ public class PipeBlock extends BlockWithEntity implements ItemPipeConnectable {
     public void neighborUpdate(BlockState state, World world, BlockPos pos, Block block, BlockPos fromPos, boolean notify) {
 
         BlockState changedState = world.getBlockState(fromPos); //Get the new block at the modified position.
-        if (changedState.getBlock() instanceof AirBlock || isConnectable(changedState.getBlock(), world.getBlockEntity(fromPos))) {
+        if (changedState.getBlock() instanceof AirBlock || isConnectable(world, fromPos, Direction.fromVector(fromPos.subtract(pos)), changedState.getBlock(), world.getBlockEntity(fromPos))) {
             BlockEntity pipeEntity = world.getBlockEntity(pos);
-            if (pipeEntity instanceof PipeEntity pipe) {
+            if (pipeEntity instanceof ItemPipeEntity pipe) {
                 pipe.clearNetworkCache(true);
             }
         }
         super.neighborUpdate(state, world, pos, block, fromPos, notify);
     }
+
+
 }

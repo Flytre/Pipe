@@ -4,7 +4,7 @@ import me.shedaniel.math.Rectangle;
 import me.shedaniel.rei.api.client.plugins.REIClientPlugin;
 import me.shedaniel.rei.api.client.registry.screen.ExclusionZones;
 import me.shedaniel.rei.api.client.registry.screen.ScreenRegistry;
-import net.flytre.pipe.client.PipeScreen;
+import net.flytre.pipe.impl.client.PipeScreen;
 
 import java.util.List;
 

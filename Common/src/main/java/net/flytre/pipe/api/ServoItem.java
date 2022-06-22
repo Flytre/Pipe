@@ -1,6 +1,5 @@
-package net.flytre.pipe.item;
+package net.flytre.pipe.api;
 
-import net.flytre.pipe.PipeBlock;
 import net.minecraft.block.BlockState;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.item.Item;
@@ -22,7 +21,7 @@ public class ServoItem extends Item {
     public ActionResult useOnBlock(ItemUsageContext context) {
 
         BlockState og =  context.getWorld().getBlockState(context.getBlockPos());
-        if(og.getBlock() instanceof PipeBlock)
+        if(og.getBlock() instanceof AbstractPipeBlock<?>)
             return ActionResult.FAIL;
 
         BlockPos pos = context.getBlockPos().offset(context.getSide());
@@ -30,7 +29,7 @@ public class ServoItem extends Item {
         World world = context.getWorld();
         BlockState state = world.getBlockState(pos);
 
-        if(!(state.getBlock() instanceof PipeBlock))
+        if(!(state.getBlock() instanceof AbstractPipeBlock<?>))
             return ActionResult.FAIL;
 
         if (!context.getWorld().isClient && context.getPlayer() != null) {

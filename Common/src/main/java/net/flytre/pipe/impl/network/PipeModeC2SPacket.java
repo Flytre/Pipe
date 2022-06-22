@@ -1,6 +1,6 @@
-package net.flytre.pipe.network;
+package net.flytre.pipe.impl.network;
 
-import net.flytre.pipe.PipeEntity;
+import net.flytre.pipe.impl.ItemPipeEntity;
 import net.minecraft.block.entity.BlockEntity;
 import net.minecraft.network.Packet;
 import net.minecraft.network.PacketByteBuf;
@@ -40,7 +40,7 @@ public class PipeModeC2SPacket implements Packet<ServerPlayPacketListener> {
                 return;
 
             BlockEntity entity = world.getBlockEntity(pos);
-            if (!(entity instanceof PipeEntity pipe))
+            if (!(entity instanceof ItemPipeEntity pipe))
                 return;
             pipe.setRoundRobinMode(val != 0);
         });

@@ -1,4 +1,4 @@
-package net.flytre.pipe;
+package net.flytre.pipe.impl.registry;
 
 import net.minecraft.block.Block;
 import net.minecraft.item.BlockItem;

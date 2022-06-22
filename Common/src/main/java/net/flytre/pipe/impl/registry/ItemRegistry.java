@@ -1,9 +1,11 @@
-package net.flytre.pipe;
+package net.flytre.pipe.impl.registry;
 
 import net.flytre.flytre_lib.api.base.compat.wrench.WrenchItem;
 import net.flytre.flytre_lib.api.base.compat.wrench.WrenchObservers;
 import net.flytre.flytre_lib.loader.LoaderAgnosticRegistry;
-import net.flytre.pipe.item.ServoItem;
+import net.flytre.pipe.impl.ItemPipeEntity;
+import net.flytre.pipe.impl.ItemPipeBlock;
+import net.flytre.pipe.api.ServoItem;
 import net.minecraft.block.Block;
 import net.minecraft.block.BlockState;
 import net.minecraft.block.entity.BlockEntity;
@@ -28,25 +30,25 @@ public class ItemRegistry {
                 BlockPos pos = context.getBlockPos();
                 BlockEntity entity = context.getWorld().getBlockEntity(pos);
 
-                if ((entity instanceof PipeEntity)) {
-                    ((PipeEntity) entity).setRoundRobinMode(!((PipeEntity) entity).isRoundRobinMode());
+                if ((entity instanceof ItemPipeEntity)) {
+                    ((ItemPipeEntity) entity).setRoundRobinMode(!((ItemPipeEntity) entity).isRoundRobinMode());
                 }
 
             }
         });
         WrenchObservers.addShiftTickObserver((World world, BlockHitResult hitResult, Block block, PlayerEntity player, BlockState state, BlockEntity blockEntity) -> {
-            if (block instanceof PipeBlock) {
+            if (block instanceof ItemPipeBlock) {
                 BlockEntity entity = world.getBlockEntity(hitResult.getBlockPos());
-                if (entity instanceof PipeEntity) {
-                    boolean isRoundRobin = ((PipeEntity) entity).isRoundRobinMode();
+                if (entity instanceof ItemPipeEntity) {
+                    boolean isRoundRobin = ((ItemPipeEntity) entity).isRoundRobinMode();
                     player.sendMessage(Text.translatable("item.pipe.wrench.2").append(": " + isRoundRobin), true);
                 }
             }
         });
         WrenchObservers.addNoShiftTickObserver((World world, BlockHitResult hitResult, Block block, PlayerEntity player, BlockState state, BlockEntity blockEntity) -> {
             boolean wrenched;
-            if (block instanceof PipeBlock && blockEntity instanceof PipeEntity) {
-                wrenched = ((PipeEntity) blockEntity).wrenched.get(hitResult.getSide());
+            if (block instanceof ItemPipeBlock && blockEntity instanceof ItemPipeEntity) {
+                wrenched = ((ItemPipeEntity) blockEntity).wrenched.get(hitResult.getSide());
 
                 player.sendMessage(Text.translatable("item.pipe.wrench.1").append(" (" + hitResult.getSide().name() + "): " + wrenched), true);
             }

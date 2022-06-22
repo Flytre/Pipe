@@ -1,4 +1,4 @@
-package net.flytre.pipe;
+package net.flytre.pipe.api;
 
 import net.minecraft.util.StringIdentifiable;
 

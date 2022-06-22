@@ -1,6 +1,8 @@
-package net.flytre.pipe;
+package net.flytre.pipe.impl.network;
 
 import net.flytre.flytre_lib.api.storage.inventory.filter.FilterInventory;
+import net.flytre.pipe.impl.ItemPipeEntity;
+import net.flytre.pipe.impl.registry.Registry;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.entity.player.PlayerInventory;
 import net.minecraft.item.Item;
@@ -23,7 +25,7 @@ public class PipeHandler extends ScreenHandler {
     private boolean isRoundRobin;
 
     public PipeHandler(int syncId, PlayerInventory playerInventory, PacketByteBuf buf) {
-        this(syncId, playerInventory, new PipeEntity(BlockPos.ORIGIN, Registry.ITEM_PIPE.get().getDefaultState()));
+        this(syncId, playerInventory, new ItemPipeEntity(BlockPos.ORIGIN, Registry.ITEM_PIPE.get().getDefaultState()));
         pos = buf.readBlockPos();
         synced = true;
         filterType = buf.readInt();
@@ -33,7 +35,7 @@ public class PipeHandler extends ScreenHandler {
     }
 
 
-    public PipeHandler(int syncId, PlayerInventory playerInventory, PipeEntity entity) {
+    public PipeHandler(int syncId, PlayerInventory playerInventory, ItemPipeEntity entity) {
         super(Registry.ITEM_PIPE_SCREEN_HANDLER.get(), syncId);
         this.inv = entity.getFilter();
         pos = BlockPos.ORIGIN;

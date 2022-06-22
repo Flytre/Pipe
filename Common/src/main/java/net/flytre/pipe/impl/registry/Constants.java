@@ -1,4 +1,4 @@
-package net.flytre.pipe;
+package net.flytre.pipe.impl.registry;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;

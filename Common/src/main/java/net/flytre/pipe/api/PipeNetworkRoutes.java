@@ -1,7 +1,6 @@
-package net.flytre.pipe;
+package net.flytre.pipe.api;
 
-import net.flytre.flytre_lib.api.storage.inventory.filter.FilterInventory;
-import net.minecraft.item.ItemStack;
+import net.flytre.flytre_lib.api.storage.inventory.filter.ResourceFilter;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Direction;
 import org.apache.commons.lang3.function.TriFunction;
@@ -16,22 +15,22 @@ import java.util.function.Supplier;
 /**
  * Stores the structure of all possible routes through a network from a starting point in it
  */
-public interface PipeNetworkRoutes {
+interface PipeNetworkRoutes<T> {
 
     boolean isTerminal();
 
-    void addTerminal(@NotNull StackFreePath path);
+    void addTerminal(@NotNull PipePath.Potential<T> path);
 
-    PipeNetworkRoutes addNonTerminal(Supplier<FilterInventory> filter, Supplier<Boolean> roundRobin);
+    PipeNetworkRoutes<T> addNonTerminal(Supplier<ResourceFilter<? super T>> filter, Supplier<Boolean> roundRobin);
 
-    List<StackFreePath> getPathsFor(ItemStack stack, TriFunction<ItemStack, BlockPos, Direction, Boolean> insertionCheck);
+    List<PipePath.Potential<T>> getPathsFor(T resource, TriFunction<T, BlockPos, Direction, Boolean> insertionCheck);
 
-    class RecursiveNode implements PipeNetworkRoutes {
-        private final List<PipeNetworkRoutes> entries = new ArrayList<>();
-        private final Supplier<FilterInventory> filter;
+    final class RecursiveNode<T> implements PipeNetworkRoutes<T> {
+        private final List<PipeNetworkRoutes<T>> entries = new ArrayList<>();
+        private final Supplier<ResourceFilter<? super T>> filter;
         private final Supplier<Boolean> roundRobin;
 
-        public RecursiveNode(Supplier<FilterInventory> filter, Supplier<Boolean> roundRobin) {
+        public RecursiveNode(Supplier<ResourceFilter<? super T>> filter, Supplier<Boolean> roundRobin) {
             this.filter = filter;
             this.roundRobin = roundRobin;
         }
@@ -42,37 +41,37 @@ public interface PipeNetworkRoutes {
         }
 
         @Override
-        public void addTerminal(@NotNull StackFreePath path) {
-            TerminalNode result = new TerminalNode(path);
+        public void addTerminal(@NotNull PipePath.Potential<T> path) {
+            TerminalNode<T> result = new TerminalNode<>(path);
             entries.add(result);
         }
 
         @Override
-        public PipeNetworkRoutes addNonTerminal(Supplier<FilterInventory> filter, Supplier<Boolean> roundRobin) {
-            PipeNetworkRoutes result = new RecursiveNode(filter, roundRobin);
+        public PipeNetworkRoutes<T> addNonTerminal(Supplier<ResourceFilter<? super T>> filter, Supplier<Boolean> roundRobin) {
+            PipeNetworkRoutes<T> result = new RecursiveNode<>(filter, roundRobin);
             entries.add(result);
             return result;
         }
 
         @Override
-        public List<StackFreePath> getPathsFor(ItemStack stack, TriFunction<ItemStack, BlockPos, Direction, Boolean> insertionCheck) {
-            FilterInventory filterInv = filter.get();
-            if (!filterInv.isEmpty() && !filterInv.passFilterTest(stack))
+        public List<PipePath.Potential<T>> getPathsFor(T resource, TriFunction<T, BlockPos, Direction, Boolean> insertionCheck) {
+            ResourceFilter<? super T> filterInv = filter.get();
+            if (!filterInv.isEmpty() && !filterInv.passFilterTest(resource))
                 return List.of();
 
             //since it's a bfs, closer entries have been entered first
             if (!roundRobin.get()) {
                 for (var entry : entries) {
-                    List<StackFreePath> paths = entry.getPathsFor(stack, insertionCheck);
+                    List<PipePath.Potential<T>> paths = entry.getPathsFor(resource, insertionCheck);
                     if (paths.size() > 0)
                         return paths;
                 }
                 return List.of();
             } else {
 
-                List<StackFreePath> paths = new ArrayList<>();
+                List<PipePath.Potential<T>> paths = new ArrayList<>();
                 for (var entry : entries) {
-                    paths.addAll(entry.getPathsFor(stack, insertionCheck));
+                    paths.addAll(entry.getPathsFor(resource, insertionCheck));
                 }
                 return paths;
             }
@@ -83,7 +82,7 @@ public interface PipeNetworkRoutes {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
 
-            RecursiveNode that = (RecursiveNode) o;
+            RecursiveNode<?> that = (RecursiveNode<?>) o;
 
             if (!entries.equals(that.entries)) return false;
             if (!Objects.equals(filter, that.filter)) return false;
@@ -99,10 +98,10 @@ public interface PipeNetworkRoutes {
         }
     }
 
-    class TerminalNode implements PipeNetworkRoutes {
-        private final @NotNull StackFreePath path;
+    final class TerminalNode<T> implements PipeNetworkRoutes<T> {
+        private final PipePath.@NotNull Potential<T> path;
 
-        public TerminalNode(@NotNull StackFreePath path) {
+        public TerminalNode(@NotNull PipePath.Potential<T> path) {
             this.path = path;
         }
 
@@ -112,18 +111,18 @@ public interface PipeNetworkRoutes {
         }
 
         @Override
-        public void addTerminal(@NotNull StackFreePath path) {
+        public void addTerminal(@NotNull PipePath.Potential<T> path) {
             throw new AssertionError("Cannot add to terminal node");
         }
 
         @Override
-        public PipeNetworkRoutes addNonTerminal(Supplier<FilterInventory> filter, Supplier<Boolean> roundRobin) {
+        public PipeNetworkRoutes<T> addNonTerminal(Supplier<ResourceFilter<? super T>> filter, Supplier<Boolean> roundRobin) {
             throw new AssertionError("Cannot add to terminal node");
         }
 
         @Override
-        public List<StackFreePath> getPathsFor(ItemStack stack, TriFunction<ItemStack, BlockPos, Direction, Boolean> insertionCheck) {
-            return insertionCheck.apply(stack, path.getDestination(), path.getDirection()) ? List.of(path) : List.of();
+        public List<PipePath.Potential<T>> getPathsFor(T resource, TriFunction<T, BlockPos, Direction, Boolean> insertionCheck) {
+            return insertionCheck.apply(resource, path.destination(), path.direction()) ? List.of(path) : List.of();
         }
 
         @Override
@@ -131,7 +130,7 @@ public interface PipeNetworkRoutes {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
 
-            TerminalNode that = (TerminalNode) o;
+            TerminalNode<?> that = (TerminalNode<?>) o;
 
             return path.equals(that.path);
         }
@@ -140,5 +139,16 @@ public interface PipeNetworkRoutes {
         public int hashCode() {
             return path.hashCode();
         }
+
+        public PipePath.@NotNull Potential<T> getPath() {
+            return path;
+        }
+
+        @Override
+        public String toString() {
+            return "TerminalNode[" +
+                    "path=" + path + ']';
+        }
+
     }
 }

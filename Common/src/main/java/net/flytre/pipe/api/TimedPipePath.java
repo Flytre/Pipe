@@ -1,40 +1,35 @@
-package net.flytre.pipe;
+package net.flytre.pipe.api;
 
-import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NbtCompound;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Direction;
 
 import java.util.LinkedList;
 
-public class TimedPipePath {
-    public static final TimedPipePath DEFAULT;
+public class TimedPipePath<C> {
 
-    static {
-        PipePath result = new PipePath(BlockPos.ORIGIN, new LinkedList<>(), ItemStack.EMPTY, Direction.NORTH, Direction.NORTH);
-        DEFAULT = new TimedPipePath(result, 9999);
-    }
-
-    private final PipePath pipePath;
+    private final PipePath<C> pipePath;
     private int time;
     private boolean stuck;
+    private boolean anim;
 
-    public TimedPipePath(PipePath pipePath, int time) {
+    public TimedPipePath(PipePath<C> pipePath, int time) {
         this(pipePath, time, false);
     }
 
-    public TimedPipePath(PipePath pipePath, int time, boolean stuck) {
+    public TimedPipePath(PipePath<C> pipePath, int time, boolean stuck) {
         this.pipePath = pipePath;
         this.time = time;
         this.stuck = stuck;
+        this.anim = true;
     }
 
-    public static TimedPipePath fromTag(NbtCompound tag) {
+    public static <C> TimedPipePath<C> fromTag(NbtCompound tag, ResourceHandler<C,?> handler) {
         NbtCompound pipeTag = tag.getCompound("result");
-        PipePath result = PipePath.fromTag(pipeTag);
+        PipePath<C> result = PipePath.fromTag(pipeTag,handler);
         int time = tag.getInt("time");
         boolean stuck = tag.getBoolean("stuck");
-        return new TimedPipePath(result, time, stuck);
+        return new TimedPipePath<>(result, time, stuck);
     }
 
     public boolean isStuck() {
@@ -45,8 +40,28 @@ public class TimedPipePath {
         this.stuck = stuck;
     }
 
-    public PipePath getPipePath() {
-        return pipePath;
+    public LinkedList<BlockPos> getPath() {
+        return pipePath.getPath();
+    }
+
+    public BlockPos getDestination() {
+        return pipePath.getDestination();
+    }
+
+    public C getResource() {
+        return pipePath.getResource();
+    }
+
+    public Direction getDirection() {
+        return pipePath.getDirection();
+    }
+
+    public int getLength() {
+        return pipePath.getLength();
+    }
+
+    public Direction getAnim() {
+        return anim ? pipePath.getAnim() : null;
     }
 
     public int getTime() {
@@ -60,7 +75,7 @@ public class TimedPipePath {
     public void decreaseTime() {
         this.time--;
         if (time <= 0)
-            getPipePath().removeAnim();
+            anim = false;
     }
 
     public NbtCompound toTag(NbtCompound tag, boolean client) {

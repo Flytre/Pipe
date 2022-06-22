@@ -1,7 +1,7 @@
 package net.flytre.pipe.mixin;
 
-import net.flytre.pipe.PipeEntity;
-import net.flytre.pipe.Registry;
+import net.flytre.pipe.impl.ItemPipeEntity;
+import net.flytre.pipe.impl.registry.Registry;
 import net.minecraft.block.entity.BlockEntity;
 import net.minecraft.network.Packet;
 import net.minecraft.network.listener.ClientPlayPacketListener;
@@ -29,10 +29,10 @@ public class ChunkHolderMixin {
     @Inject(method = "sendBlockEntityUpdatePacket", at = @At("HEAD"), cancellable = true)
     public void pipe$customPipeUpdates(World world, BlockPos pos, CallbackInfo ci) {
         BlockEntity blockEntity = world.getBlockEntity(pos);
-        if (!(blockEntity instanceof PipeEntity pipeEntity))
+        if (!(blockEntity instanceof ItemPipeEntity itemPipeEntity))
             return;
         ci.cancel();
-        Packet<ClientPlayPacketListener> updatePacket = pipeEntity.toUpdatePacket();
+        Packet<ClientPlayPacketListener> updatePacket = itemPipeEntity.toUpdatePacket();
         this.pipe$sendPacketToNearPlayers(pos, updatePacket);
     }
 

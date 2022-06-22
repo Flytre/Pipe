@@ -1,12 +1,10 @@
-package net.flytre.pipe;
+package net.flytre.pipe.impl.registry;
 
 import net.flytre.flytre_lib.loader.LoaderAgnosticClientRegistry;
 import net.flytre.flytre_lib.loader.RenderLayerRegistry;
-import net.flytre.pipe.client.PipeRenderer;
-import net.flytre.pipe.client.PipeScreen;
-import net.minecraft.block.Blocks;
+import net.flytre.pipe.impl.client.ItemPipeRenderer;
+import net.flytre.pipe.impl.client.PipeScreen;
 import net.minecraft.client.render.RenderLayer;
-import net.minecraft.entity.vehicle.HopperMinecartEntity;
 
 public class ClientRegistry {
 
@@ -14,7 +12,7 @@ public class ClientRegistry {
         RenderLayerRegistry.registerBlockLayer(RenderLayer.getTranslucent(), Registry.ITEM_PIPE);
         RenderLayerRegistry.registerBlockLayer(RenderLayer.getTranslucent(), Registry.FAST_PIPE);
         RenderLayerRegistry.registerBlockLayer(RenderLayer.getTranslucent(), Registry.LIGHTNING_PIPE);
-        LoaderAgnosticClientRegistry.register(() -> Registry.ITEM_PIPE_BLOCK_ENTITY.get(), PipeRenderer::new);
+        LoaderAgnosticClientRegistry.register(() -> Registry.ITEM_PIPE_BLOCK_ENTITY.get(), ItemPipeRenderer::new);
         LoaderAgnosticClientRegistry.register(() -> Registry.ITEM_PIPE_SCREEN_HANDLER.get(), PipeScreen::new);
     }
 }
