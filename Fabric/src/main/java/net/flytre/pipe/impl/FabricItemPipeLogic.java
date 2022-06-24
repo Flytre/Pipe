@@ -72,7 +72,7 @@ public class FabricItemPipeLogic implements PipeLogic<ItemStack> {
     private static final StorageExtractor<ItemStack> FABRIC_STORAGE_EXTRACTOR = new StorageExtractor<>() {
         @Override
         public boolean extract(World world, BlockPos pipePosition, Direction direction, ResourceFilter<? super ItemStack> filter, Predicate<ItemStack> pipeHandler) {
-            Storage<ItemVariant> storage = ItemStorage.SIDED.find(world, pipePosition.offset(direction), direction);
+            Storage<ItemVariant> storage = ItemStorage.SIDED.find(world, pipePosition.offset(direction), direction.getOpposite());
             if (storage == null || !storage.supportsExtraction())
                 return false;
             for (StorageView<ItemVariant> view : storage) {

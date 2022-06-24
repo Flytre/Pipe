@@ -69,7 +69,7 @@ public class ForgeItemPipeLogic implements PipeLogic<ItemStack> {
         if (entity == null)
             return false;
 
-        LazyOptional<IItemHandler> capability = entity.getCapability(CapabilityItemHandler.ITEM_HANDLER_CAPABILITY, dir);
+        LazyOptional<IItemHandler> capability = entity.getCapability(CapabilityItemHandler.ITEM_HANDLER_CAPABILITY, dir.getOpposite());
         return capability.resolve().isPresent();
     };
 
