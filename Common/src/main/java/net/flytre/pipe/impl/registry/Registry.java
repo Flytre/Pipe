@@ -6,9 +6,12 @@ import net.flytre.flytre_lib.api.config.ConfigRegistry;
 import net.flytre.flytre_lib.loader.BlockEntityFactory;
 import net.flytre.flytre_lib.loader.ItemTabCreator;
 import net.flytre.flytre_lib.loader.LoaderAgnosticRegistry;
-import net.flytre.pipe.impl.ItemPipeEntity;
-import net.flytre.pipe.impl.network.PipeHandler;
-import net.flytre.pipe.impl.ItemPipeBlock;
+import net.flytre.pipe.impl.fluid.FluidPipeBlock;
+import net.flytre.pipe.impl.fluid.FluidPipeEntity;
+import net.flytre.pipe.impl.fluid.FluidPipeHandler;
+import net.flytre.pipe.impl.item.ItemPipeEntity;
+import net.flytre.pipe.impl.network.ItemPipeHandler;
+import net.flytre.pipe.impl.item.ItemPipeBlock;
 import net.flytre.pipe.impl.network.PipeModeC2SPacket;
 import net.minecraft.block.AbstractBlock;
 import net.minecraft.block.Block;
@@ -36,7 +39,11 @@ public class Registry {
 
     public static final ConfigHandler<Config> PIPE_CONFIG = new ConfigHandler<>(new Config(), "pipe");
     public static Supplier<BlockEntityType<ItemPipeEntity>> ITEM_PIPE_BLOCK_ENTITY;
-    public static Supplier<ScreenHandlerType<PipeHandler>> ITEM_PIPE_SCREEN_HANDLER;
+    public static Supplier<ScreenHandlerType<ItemPipeHandler>> ITEM_PIPE_SCREEN_HANDLER;
+
+    public static final Supplier<Block> FLUID_PIPE = registerBlock(() -> new FluidPipeBlock(AbstractBlock.Settings.of(Material.METAL).nonOpaque().hardness(0.9f)), "fluid_pipe");
+    public static Supplier<BlockEntityType<FluidPipeEntity>> FLUID_PIPE_BLOCK_ENTITY;
+    public static Supplier<ScreenHandlerType<FluidPipeHandler>> FLUID_PIPE_SCREEN_HANDLER;
 
     public static <T extends Block> Supplier<T> registerBlock(Supplier<T> block, String id) {
         final var temp = LoaderAgnosticRegistry.registerBlock(block, Constants.MOD_ID, id);
@@ -52,7 +59,10 @@ public class Registry {
     public static void init() {
         ITEM_PIPE_BLOCK_ENTITY = LoaderAgnosticRegistry.registerBlockEntityType(() -> BlockEntityFactory.createBuilder(ItemPipeEntity::new, ITEM_PIPE.get(), FAST_PIPE.get(),LIGHTNING_PIPE.get()).build(null), "pipe", "item_pipe");
         ItemRegistry.init();
-        ITEM_PIPE_SCREEN_HANDLER = LoaderAgnosticRegistry.registerExtendedScreen(PipeHandler::new, "pipe", "item_pipe");
+        ITEM_PIPE_SCREEN_HANDLER = LoaderAgnosticRegistry.registerExtendedScreen(ItemPipeHandler::new, "pipe", "item_pipe");
+
+        FLUID_PIPE_BLOCK_ENTITY = LoaderAgnosticRegistry.registerBlockEntityType(() -> BlockEntityFactory.createBuilder(FluidPipeEntity::new, FLUID_PIPE.get()).build(null), "pipe", "fluid_pipe");
+        FLUID_PIPE_SCREEN_HANDLER = LoaderAgnosticRegistry.registerExtendedScreen(FluidPipeHandler::new, "pipe", "fluid_pipe");
 
         PacketUtils.registerC2SPacket(PipeModeC2SPacket.class, PipeModeC2SPacket::new);
         ConfigRegistry.registerServerConfig(PIPE_CONFIG);

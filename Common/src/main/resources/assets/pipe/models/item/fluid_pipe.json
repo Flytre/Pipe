@@ -1,0 +1,8 @@
+{
+  "parent" : "pipe:block/item_pipe/node",
+  "textures": {
+    "particle": "pipe:block/fluid_pipe/node",
+    "texture": "pipe:block/fluid_pipe/node",
+    "1": "block/light_gray_stained_glass"
+  }
+}

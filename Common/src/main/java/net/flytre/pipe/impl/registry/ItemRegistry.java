@@ -3,8 +3,10 @@ package net.flytre.pipe.impl.registry;
 import net.flytre.flytre_lib.api.base.compat.wrench.WrenchItem;
 import net.flytre.flytre_lib.api.base.compat.wrench.WrenchObservers;
 import net.flytre.flytre_lib.loader.LoaderAgnosticRegistry;
-import net.flytre.pipe.impl.ItemPipeEntity;
-import net.flytre.pipe.impl.ItemPipeBlock;
+import net.flytre.pipe.api.AbstractPipeBlock;
+import net.flytre.pipe.api.AbstractPipeEntity;
+import net.flytre.pipe.impl.item.ItemPipeEntity;
+import net.flytre.pipe.impl.item.ItemPipeBlock;
 import net.flytre.pipe.api.ServoItem;
 import net.minecraft.block.Block;
 import net.minecraft.block.BlockState;
@@ -30,25 +32,25 @@ public class ItemRegistry {
                 BlockPos pos = context.getBlockPos();
                 BlockEntity entity = context.getWorld().getBlockEntity(pos);
 
-                if ((entity instanceof ItemPipeEntity)) {
-                    ((ItemPipeEntity) entity).setRoundRobinMode(!((ItemPipeEntity) entity).isRoundRobinMode());
+                if ((entity instanceof AbstractPipeEntity<?,?>)) {
+                    ((AbstractPipeEntity<?,?>) entity).setRoundRobinMode(!((AbstractPipeEntity<?,?>) entity).isRoundRobinMode());
                 }
 
             }
         });
         WrenchObservers.addShiftTickObserver((World world, BlockHitResult hitResult, Block block, PlayerEntity player, BlockState state, BlockEntity blockEntity) -> {
-            if (block instanceof ItemPipeBlock) {
+            if (block instanceof AbstractPipeBlock<?>) {
                 BlockEntity entity = world.getBlockEntity(hitResult.getBlockPos());
-                if (entity instanceof ItemPipeEntity) {
-                    boolean isRoundRobin = ((ItemPipeEntity) entity).isRoundRobinMode();
+                if (entity instanceof AbstractPipeEntity<?,?>) {
+                    boolean isRoundRobin = ((AbstractPipeEntity<?,?>) entity).isRoundRobinMode();
                     player.sendMessage(Text.translatable("item.pipe.wrench.2").append(": " + isRoundRobin), true);
                 }
             }
         });
         WrenchObservers.addNoShiftTickObserver((World world, BlockHitResult hitResult, Block block, PlayerEntity player, BlockState state, BlockEntity blockEntity) -> {
             boolean wrenched;
-            if (block instanceof ItemPipeBlock && blockEntity instanceof ItemPipeEntity) {
-                wrenched = ((ItemPipeEntity) blockEntity).wrenched.get(hitResult.getSide());
+            if (block instanceof AbstractPipeBlock<?> && blockEntity instanceof AbstractPipeEntity<?,?>) {
+                wrenched = ((AbstractPipeEntity<?,?>) blockEntity).wrenched.get(hitResult.getSide());
 
                 player.sendMessage(Text.translatable("item.pipe.wrench.1").append(" (" + hitResult.getSide().name() + "): " + wrenched), true);
             }

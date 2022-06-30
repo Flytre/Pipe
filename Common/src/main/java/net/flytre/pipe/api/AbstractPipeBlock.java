@@ -3,7 +3,6 @@ package net.flytre.pipe.api;
 import net.flytre.flytre_lib.api.base.compat.wrench.WrenchItem;
 import net.flytre.flytre_lib.loader.CustomScreenHandlerFactory;
 import net.flytre.flytre_lib.loader.ScreenLoaderUtils;
-import net.flytre.pipe.impl.ItemPipeEntity;
 import net.minecraft.block.*;
 import net.minecraft.block.entity.BlockEntity;
 import net.minecraft.block.entity.BlockEntityTicker;
@@ -55,7 +54,6 @@ public abstract class AbstractPipeBlock<C> extends BlockWithEntity {
     private static final VoxelShape S_NORTH;
     private static final VoxelShape S_SOUTH;
 
-
     static {
         UP = EnumProperty.of("pipe_up", PipeSide.class);
         DOWN = EnumProperty.of("pipe_down", PipeSide.class);
@@ -63,6 +61,7 @@ public abstract class AbstractPipeBlock<C> extends BlockWithEntity {
         SOUTH = EnumProperty.of("pipe_south", PipeSide.class);
         EAST = EnumProperty.of("pipe_east", PipeSide.class);
         WEST = EnumProperty.of("pipe_west", PipeSide.class);
+
         NODE = Block.createCuboidShape(4.5, 4.5, 4.5, 11.5, 11.5, 11.5);
         C_DOWN = Block.createCuboidShape(4.5, 0, 4.5, 11.5, 5, 11.5);
         C_UP = Block.createCuboidShape(4.5, 11, 4.5, 11.5, 16, 11.5);
@@ -343,13 +342,11 @@ public abstract class AbstractPipeBlock<C> extends BlockWithEntity {
     }
 
     @Override
-    public @Nullable BlockEntity createBlockEntity(BlockPos pos, BlockState state) {
-        return new ItemPipeEntity(pos, state);
-    }
+    public abstract @Nullable BlockEntity createBlockEntity(BlockPos pos, BlockState state);
 
     private void openScreen(World world, BlockPos pos, ServerPlayerEntity player) {
         BlockEntity blockEntity = world.getBlockEntity(pos);
-        if (blockEntity instanceof ItemPipeEntity) {
+        if (blockEntity instanceof CustomScreenHandlerFactory) {
             boolean bl = false;
             BlockState state = world.getBlockState(pos);
             for (Direction dir : Direction.values()) {
@@ -365,17 +362,17 @@ public abstract class AbstractPipeBlock<C> extends BlockWithEntity {
     }
 
     private boolean isWrenched(WorldAccess world, BlockPos pos, Direction d) {
-        BlockEntity b = world.getBlockEntity(pos);
-        if (!(b instanceof ItemPipeEntity))
+        BlockEntity blockEntity = world.getBlockEntity(pos);
+        if (!(blockEntity instanceof AbstractPipeEntity<?,?> abstractPipeEntity))
             return false;
-        return ((ItemPipeEntity) b).wrenched.get(d);
+        return abstractPipeEntity.wrenched.get(d);
     }
 
     private void setWrenched(WorldAccess world, BlockPos pos, Direction d, boolean value) {
-        BlockEntity b = world.getBlockEntity(pos);
-        if (!(b instanceof ItemPipeEntity))
+        BlockEntity blockEntity = world.getBlockEntity(pos);
+        if (!(blockEntity instanceof AbstractPipeEntity<?,?> abstractPipeEntity))
             return;
-        ((ItemPipeEntity) b).wrenched.put(d, value);
+        ((AbstractPipeEntity<?,?>) blockEntity).wrenched.put(d, value);
     }
 
 
@@ -407,7 +404,7 @@ public abstract class AbstractPipeBlock<C> extends BlockWithEntity {
         BlockState changedState = world.getBlockState(fromPos); //Get the new block at the modified position.
         if (changedState.getBlock() instanceof AirBlock || isConnectable(world, fromPos, Direction.fromVector(fromPos.subtract(pos)), changedState.getBlock(), world.getBlockEntity(fromPos))) {
             BlockEntity pipeEntity = world.getBlockEntity(pos);
-            if (pipeEntity instanceof ItemPipeEntity pipe) {
+            if (pipeEntity instanceof AbstractPipeEntity pipe) {
                 pipe.clearNetworkCache(true);
             }
         }

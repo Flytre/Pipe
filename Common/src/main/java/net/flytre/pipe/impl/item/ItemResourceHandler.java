@@ -1,4 +1,4 @@
-package net.flytre.pipe.impl;
+package net.flytre.pipe.impl.item;
 
 import net.flytre.flytre_lib.api.storage.inventory.filter.FilterInventory;
 import net.flytre.pipe.api.ResourceHandler;
@@ -6,6 +6,7 @@ import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NbtCompound;
 import net.minecraft.network.PacketByteBuf;
 import net.minecraft.util.registry.Registry;
+
 
 public class ItemResourceHandler implements ResourceHandler<ItemStack, FilterInventory> {
 
@@ -21,20 +22,8 @@ public class ItemResourceHandler implements ResourceHandler<ItemStack, FilterInv
     }
 
     @Override
-    public NbtCompound writeFilterNbt(NbtCompound compound, ItemStack resource) {
+    public NbtCompound writeNbt(NbtCompound compound, ItemStack resource) {
         return resource.writeNbt(compound);
-    }
-
-    @Override
-    public ItemStack copy(ItemStack in) {
-        return in.copy();
-    }
-
-    @Override
-    public ItemStack copyWithSingleUnit(ItemStack in) {
-        ItemStack copy = in.copy();
-        copy.setCount(1);
-        return copy;
     }
 
     @Override
@@ -80,5 +69,17 @@ public class ItemResourceHandler implements ResourceHandler<ItemStack, FilterInv
         packetByteBuf.writeInt(filter.getFilterType());
         packetByteBuf.writeBoolean(filter.isMatchMod());
         packetByteBuf.writeBoolean(filter.isMatchNbt());
+    }
+
+    @Override
+    public long getQuantity(ItemStack stack) {
+        return stack.getCount();
+    }
+
+    @Override
+    public ItemStack copyWithQuantity(ItemStack stack, long amount) {
+        ItemStack copy = stack.copy();
+        copy.setCount((int)amount);
+        return copy;
     }
 }

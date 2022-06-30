@@ -1,7 +1,7 @@
 package net.flytre.pipe.impl.client;
 
 import com.google.common.collect.Lists;
-import net.flytre.pipe.impl.ItemPipeEntity;
+import net.flytre.pipe.impl.item.ItemPipeEntity;
 import net.flytre.pipe.api.TimedPipePath;
 import net.flytre.pipe.api.ClientPathValidityChecker;
 import net.minecraft.client.MinecraftClient;
@@ -32,7 +32,7 @@ public class ItemPipeRenderer implements BlockEntityRenderer<ItemPipeEntity> {
     public void render(ItemPipeEntity entity, float tickDelta, MatrixStack matrices, VertexConsumerProvider vertexConsumers, int light, int overlay) {
 
 
-        int ticksPerOperation = entity.getTicksPerOperation();
+        int ticksThroughPipe = entity.getTicksThroughPipe();
 
         matrices.push();
         matrices.translate(0.5, 0.5, 0.5);
@@ -47,22 +47,22 @@ public class ItemPipeRenderer implements BlockEntityRenderer<ItemPipeEntity> {
             BlockPos current = path.size() > 0 ? path.get(0) : entity.getPos();
             BlockPos next = path.size() <= 1 ? timed.getDestination() : path.get(1);
 
-            float mult = ticksPerOperation - timed.getTime() + tickDelta;
+            float mult = ticksThroughPipe - timed.getTime() + tickDelta;
 
             if (entity.getWorld() != null && VALIDITY_CHECKERS.stream().noneMatch(checker -> checker.isValidPath(entity.getWorld(), current, next))) {
                 mult = 0;
             }
 
-            float dx = (next.getX() - current.getX()) / (float) ticksPerOperation * (mult);
-            float dy = (next.getY() - current.getY()) / (float) ticksPerOperation * (mult);
-            float dz = (next.getZ() - current.getZ()) / (float) ticksPerOperation * (mult);
+            float dx = (next.getX() - current.getX()) / (float) ticksThroughPipe * (mult);
+            float dy = (next.getY() - current.getY()) / (float) ticksThroughPipe * (mult);
+            float dz = (next.getZ() - current.getZ()) / (float) ticksThroughPipe * (mult);
 
             if (timed.getAnim() != null) {
                 if (mult < 0f) {
                     BlockPos pos = current.offset(timed.getAnim());
-                    dx = (pos.getX() - current.getX()) / (float) ticksPerOperation * (-mult);
-                    dy = (pos.getY() - current.getY()) / (float) ticksPerOperation * (-mult);
-                    dz = (pos.getZ() - current.getZ()) / (float) ticksPerOperation * (-mult);
+                    dx = (pos.getX() - current.getX()) / (float) ticksThroughPipe * (-mult);
+                    dy = (pos.getY() - current.getY()) / (float) ticksThroughPipe * (-mult);
+                    dz = (pos.getZ() - current.getZ()) / (float) ticksThroughPipe * (-mult);
                 }
             }
             if (!timed.isStuck())
@@ -71,12 +71,12 @@ public class ItemPipeRenderer implements BlockEntityRenderer<ItemPipeEntity> {
             matrices.translate(0, -0.125, 0);
 
             if (timed.getAnim() != null && mult < 0f) {
-                float scale = 0.5f + (mult + (float) (ticksPerOperation / 2)) / (float) (ticksPerOperation / 2) * 0.3f;
+                float scale = 0.5f + (mult + (float) (ticksThroughPipe / 2)) / (float) (ticksThroughPipe / 2) * 0.3f;
                 matrices.scale(scale, scale, scale);
             } else
                 matrices.scale(0.8f, 0.8f, 0.8f);
             if (entity.getWorld() != null)
-                matrices.multiply(Vec3f.POSITIVE_Y.getDegreesQuaternion((entity.getWorld().getTime() + tickDelta) * 4 * (20.0f / ticksPerOperation)));
+                matrices.multiply(Vec3f.POSITIVE_Y.getDegreesQuaternion((entity.getWorld().getTime() + tickDelta) * 4 * (20.0f / ticksThroughPipe)));
             MinecraftClient.getInstance().getItemRenderer().renderItem(timed.getResource(), ModelTransformation.Mode.GROUND, light, overlay, matrices, vertexConsumers, 0);
             matrices.pop();
         }

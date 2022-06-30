@@ -1,0 +1,20 @@
+{
+	"textures": {
+		"1": "pipe:block/fluid_pipe/node",
+		"particle": "pipe:block/fluid_pipe/node"
+	},
+	"elements": [
+		{
+			"from": [5, 6, 5],
+			"to": [6, 10, 6],
+			"faces": {
+				"north": {"uv": [0, 0, 1, 4], "texture": "#1"},
+				"east": {"uv": [0, 0, 1, 4], "texture": "#1"},
+				"south": {"uv": [0, 0, 1, 4], "texture": "#1"},
+				"west": {"uv": [0, 0, 1, 4], "texture": "#1"},
+				"up": {"uv": [0, 0, 1, 1], "texture": "#1"},
+				"down": {"uv": [0, 0, 1, 1], "texture": "#1"}
+			}
+		}
+	]
+}

@@ -1,3 +1,8 @@
 {
-  "parent" : "pipe:block/fast_pipe/node"
+  "parent" : "pipe:block/item_pipe/node",
+  "textures": {
+    "particle": "pipe:block/fast_pipe/node",
+    "texture": "pipe:block/fast_pipe/node",
+    "1": "block/orange_stained_glass"
+  }
 }

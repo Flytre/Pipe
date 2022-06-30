@@ -1,4 +1,4 @@
-package net.flytre.pipe.impl;
+package net.flytre.pipe.impl.item;
 
 import net.flytre.pipe.api.*;
 import net.flytre.pipe.impl.registry.ItemRegistry;
@@ -10,6 +10,7 @@ import net.minecraft.item.ItemStack;
 import net.minecraft.util.ItemScatterer;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.world.World;
+import org.jetbrains.annotations.Nullable;
 
 import java.util.function.Supplier;
 
@@ -56,6 +57,11 @@ public class ItemPipeBlock extends AbstractPipeBlock<ItemStack> {
     @Override
     protected Supplier<BlockEntityType<? extends AbstractPipeEntity<ItemStack, ?>>> getBlockEntityType() {
         return () -> Registry.ITEM_PIPE_BLOCK_ENTITY.get();
+    }
+
+    @Override
+    public @Nullable BlockEntity createBlockEntity(BlockPos pos, BlockState state) {
+        return new ItemPipeEntity(pos,state);
     }
 
     public static void setItemPipeLogic(PipeLogic<ItemStack> itemPipeLogic) {

@@ -133,7 +133,7 @@ task publishCurseForge(type: net.darkhax.curseforgegradle.TaskPublishCurseForge)
     mainFile.changelog = project.ext.mod_changelog
     mainFile.addJavaVersion('Java 17')
     mainFile.addJavaVersion('Java 18')
-    mainFile.releaseType = "release"
+    mainFile.releaseType = "beta"
     mainFile.addModLoader('Fabric')
     mainFile.addRelation("lib", "requiredDependency")
 

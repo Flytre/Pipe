@@ -1,5 +1,6 @@
 {
   "block.pipe.item_pipe": "Item Pipe",
+  "block.pipe.fluid_pipe": "Fluid Pipe",
   "block.pipe.fast_pipe": "Fast Pipe",
   "block.pipe.lightning_pipe": "Lightning Pipe",
   "item.pipe.servo": "Servo",

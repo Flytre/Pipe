@@ -7,9 +7,9 @@ import java.util.*;
 class NetworkInformation<C> {
 
     //memory usage is low for second map because its just storing references
-    //trackedPaths map store where all items are going in the network
-    private final ResourceHandler<C,?> resourceHandler;
-    private final Map<WrappedResource<C>, Set<TimedPipePath<C>>> trackedPaths;
+    //trackedPaths map store where all resources are going in the network
+    private final ResourceHandler<C, ?> resourceHandler;
+    private final Map<WrappedResource<C>, List<TimedPipePath<C>>> trackedPaths;
     private final Map<TimedPipePath<C>, WrappedResource<C>> inverseTrackedPaths;
 
     //positions store all nodes in the network
@@ -32,16 +32,16 @@ class NetworkInformation<C> {
         return positions;
     }
 
-    public void addTrackedPaths(Collection<TimedPipePath<C>> items) {
-        for (TimedPipePath<C> path : items) {
+    public void addTrackedPaths(Collection<TimedPipePath<C>> resources) {
+        for (TimedPipePath<C> path : resources) {
             addTrackedPath(path);
         }
     }
 
     public void addTrackedPath(TimedPipePath<C> path) {
-        WrappedResource<C> wrappedResource = new WrappedResource<>(path.getResource(), resourceHandler);
+        WrappedResource<C> wrappedResource = new WrappedResource<>(resourceHandler.copyWithQuantity(path.getResource(), 1), resourceHandler);
         trackedPaths
-                .computeIfAbsent(wrappedResource, __ -> new HashSet<>())
+                .computeIfAbsent(wrappedResource, __ -> new ArrayList<>())
                 .add(path);
         inverseTrackedPaths.put(path, wrappedResource);
     }
@@ -61,8 +61,9 @@ class NetworkInformation<C> {
             removeTrackedPath(path);
     }
 
-    public Set<TimedPipePath<C>> getTrackedPaths(C resource) {
-        return trackedPaths.getOrDefault(new WrappedResource<>(resource, resourceHandler), new HashSet<>());
+    public List<TimedPipePath<C>> getTrackedPaths(C resource) {
+        WrappedResource<C> wrapped = new WrappedResource<>(resourceHandler.copyWithQuantity(resource, 1), resourceHandler);
+        return trackedPaths.getOrDefault(wrapped, new ArrayList<>());
     }
 
     public boolean isEmpty() {
@@ -70,7 +71,7 @@ class NetworkInformation<C> {
     }
 
 
-    record WrappedResource<C>(C resource, ResourceHandler<C,?> handler) {
+    record WrappedResource<C>(C resource, ResourceHandler<C, ?> handler) {
         @Override
         public boolean equals(Object wrapped) {
             if (this == wrapped)
@@ -79,7 +80,7 @@ class NetworkInformation<C> {
             if (wrapped == null || getClass() != wrapped.getClass())
                 return false;
 
-            return handler().equals(resource(), ((WrappedResource<?>) wrapped).resource);
+            return this.handler().equals(this.resource(), ((WrappedResource<?>) wrapped).resource);
         }
 
         @Override

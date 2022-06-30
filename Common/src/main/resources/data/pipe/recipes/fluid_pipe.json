@@ -1,0 +1,23 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "pattern": [
+    "igi",
+    "ici",
+    "igi"
+  ],
+  "key": {
+    "i": {
+      "item": "minecraft:iron_ingot"
+    },
+    "c": {
+      "item": "minecraft:glass"
+    },
+    "g": {
+      "item" : "minecraft:glass_pane"
+    }
+  },
+  "result": {
+    "item": "pipe:item_pipe",
+    "count": 5
+  }
+}

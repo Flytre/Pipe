@@ -1,3 +1,8 @@
 {
-  "parent" : "pipe:block/lightning_pipe/node"
+  "parent" : "pipe:block/item_pipe/node",
+  "textures": {
+    "particle": "pipe:block/lightning_pipe/node",
+    "texture": "pipe:block/lightning_pipe/node",
+    "1": "block/light_blue_stained_glass"
+  }
 }

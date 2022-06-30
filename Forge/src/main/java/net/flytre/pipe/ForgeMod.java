@@ -2,8 +2,12 @@ package net.flytre.pipe;
 
 
 import net.flytre.flytre_lib.loader.LoaderCore;
-import net.flytre.pipe.impl.ItemPipeBlock;
-import net.flytre.pipe.impl.ItemPipeEntity;
+import net.flytre.pipe.impl.fluid.FluidPipeBlock;
+import net.flytre.pipe.impl.fluid.FluidPipeEntity;
+import net.flytre.pipe.impl.fluid.ForgeFluidPipeLogic;
+import net.flytre.pipe.impl.item.ForgeItemPipeLogic;
+import net.flytre.pipe.impl.item.ItemPipeBlock;
+import net.flytre.pipe.impl.item.ItemPipeEntity;
 import net.flytre.pipe.impl.registry.ClientRegistry;
 import net.flytre.pipe.impl.registry.Constants;
 import net.flytre.pipe.impl.registry.Registry;
@@ -24,5 +28,7 @@ public class ForgeMod {
         }
         ItemPipeEntity.setItemPipeLogic(ForgeItemPipeLogic.INSTANCE);
         ItemPipeBlock.setItemPipeLogic(ForgeItemPipeLogic.INSTANCE);
+        FluidPipeBlock.setFluidPipeLogic(ForgeFluidPipeLogic.INSTANCE);
+        FluidPipeEntity.setFluidPipeLogic(ForgeFluidPipeLogic.INSTANCE);
     }
 }

@@ -25,6 +25,10 @@ interface PipeNetworkRoutes<T> {
 
     List<PipePath.Potential<T>> getPathsFor(T resource, TriFunction<T, BlockPos, Direction, Boolean> insertionCheck);
 
+    List<PipePath.PotentialQuantified<T>> getQuantifiedPathsFor(T resource, TriFunction<T, BlockPos, Direction, Long> insertionAmountCalculator);
+
+    boolean isRoundRobin();
+
     final class RecursiveNode<T> implements PipeNetworkRoutes<T> {
         private final List<PipeNetworkRoutes<T>> entries = new ArrayList<>();
         private final Supplier<ResourceFilter<? super T>> filter;
@@ -78,6 +82,34 @@ interface PipeNetworkRoutes<T> {
         }
 
         @Override
+        public List<PipePath.PotentialQuantified<T>> getQuantifiedPathsFor(T resource, TriFunction<T, BlockPos, Direction, Long> insertionAmountCalculator) {
+            ResourceFilter<? super T> filterInv = filter.get();
+            if (!filterInv.isEmpty() && !filterInv.passFilterTest(resource))
+                return List.of();
+
+            if (!roundRobin.get()) {
+                for (var entry : entries) {
+                    List<PipePath.PotentialQuantified<T>> paths = entry.getQuantifiedPathsFor(resource, insertionAmountCalculator);
+                    if (paths.size() > 0)
+                        return paths;
+                }
+                return List.of();
+            } else {
+
+                List<PipePath.PotentialQuantified<T>> paths = new ArrayList<>();
+                for (var entry : entries) {
+                    paths.addAll(entry.getQuantifiedPathsFor(resource, insertionAmountCalculator));
+                }
+                return paths;
+            }
+        }
+
+        @Override
+        public boolean isRoundRobin() {
+            return roundRobin.get();
+        }
+
+        @Override
         public boolean equals(Object o) {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
@@ -126,6 +158,14 @@ interface PipeNetworkRoutes<T> {
         }
 
         @Override
+        public List<PipePath.PotentialQuantified<T>> getQuantifiedPathsFor(T resource, TriFunction<T, BlockPos, Direction, Long> insertionAmountCalculator) {
+            long amount = insertionAmountCalculator.apply(resource, path.destination(), path.direction());
+            if (amount == 0)
+                return List.of();
+            return List.of(new PipePath.PotentialQuantified<>(path, amount));
+        }
+
+        @Override
         public boolean equals(Object o) {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
@@ -150,5 +190,9 @@ interface PipeNetworkRoutes<T> {
                     "path=" + path + ']';
         }
 
+        @Override
+        public boolean isRoundRobin() {
+            throw new AssertionError("Method not supported for TerminalNode.");
+        }
     }
 }

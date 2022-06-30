@@ -16,12 +16,7 @@ public interface ResourceHandler<C, F extends ResourceFilter<? super C>> {
 
     C readNbt(NbtCompound compound);
 
-    NbtCompound writeFilterNbt(NbtCompound compound, C resource);
-
-    C copy(C in);
-
-    //return a copy of the resource with just a single unit
-    C copyWithSingleUnit(C in);
+    NbtCompound writeNbt(NbtCompound compound, C resource);
 
     boolean equals(C left, Object right);
 
@@ -36,5 +31,10 @@ public interface ResourceHandler<C, F extends ResourceFilter<? super C>> {
     F readFilterNbt(NbtCompound compound);
 
     void writeFilter(PacketByteBuf buf, F filter);
+
+    long getQuantity(C resource);
+
+    C copyWithQuantity(C resource, long amount);
+
 
 }

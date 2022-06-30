@@ -1,4 +1,4 @@
-package net.flytre.pipe.impl;
+package net.flytre.pipe.impl.item;
 
 import net.flytre.flytre_lib.api.base.util.InventoryUtils;
 import net.flytre.flytre_lib.api.storage.connectable.ItemPipeConnectable;
@@ -11,37 +11,22 @@ import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Direction;
 import net.minecraft.world.World;
 
-import java.util.function.Predicate;
+import java.util.function.ToLongFunction;
 
 public class VanillaItemPipeLogic implements PipeLogic<ItemStack> {
 
-    public static VanillaItemPipeLogic INSTANCE = new VanillaItemPipeLogic();
-
-    private VanillaItemPipeLogic() {
-
-    }
-
     private static final InsertionChecker<ItemStack> INSERTION_CHECKER = new InsertionChecker<>() {
         @Override
-        public boolean canInsert(World world, ItemStack stack, BlockPos pos, Direction direction, boolean isStuck, int flowCount) {
+        public long getInsertionAmount(World world, ItemStack stack, BlockPos pos, Direction direction, boolean isStuck, long flowAmount) {
             Inventory destination = InventoryUtils.getInventoryAt(world, pos);
             if (destination == null)
-                return false;
+                return 0;
 
-            if (flowCount == 0) {
-                return InventoryUtils.getAvailableSlots(destination, direction.getOpposite()).anyMatch(i -> {
-                    ItemStack slotStack = destination.getStack(i);
-                    if (InventoryUtils.canInsert(destination, stack, i, direction.getOpposite()))
-                        return slotStack.isEmpty() || (InventoryUtils.canMergeItems(slotStack, stack) && slotStack.getCount() < slotStack.getMaxCount());
-                    return false;
-                });
-            }
+            long maxAmount = flowAmount + stack.getCount();
 
-
-            //basically, estimate how many items are going into the container and if it's going to be full, don't send the item
             int[] slots = InventoryUtils.getAvailableSlots(destination, direction.getOpposite()).toArray();
             ItemStack copy = stack.copy();
-            copy.setCount(flowCount + 1);
+            copy.setCount((int) flowAmount + stack.getCount());
             for (int slot : slots) {
                 ItemStack slotStack = destination.getStack(slot);
 
@@ -53,7 +38,7 @@ public class VanillaItemPipeLogic implements PipeLogic<ItemStack> {
                 }
                 if (slotStack.isEmpty()) {
                     if (copy.getCount() < destination.getMaxCountPerStack())
-                        return true;
+                        return maxAmount;
                     else
                         copy.decrement(destination.getMaxCountPerStack());
                 } else if (InventoryUtils.canMergeItems(slotStack, copy)) {
@@ -61,21 +46,19 @@ public class VanillaItemPipeLogic implements PipeLogic<ItemStack> {
                     int target = slotMaxCount - slotStack.getCount();
 
                     if (copy.getCount() <= target)
-                        return true;
+                        return maxAmount;
                     else
                         copy.decrement(target);
                 }
             }
-            return false;
+            return maxAmount - copy.getCount();
 
         }
     };
-
     private static final PipeConnectable<ItemStack> PIPE_CONNECTABLE = (world, pos, direction, block, entity) -> block instanceof ItemPipeConnectable || block instanceof InventoryProvider || (entity instanceof Inventory && ((Inventory) entity).size() > 0);
-
     private static final StorageExtractor<ItemStack> STORAGE_EXTRACTOR = new StorageExtractor<>() {
         @Override
-        public boolean extract(World world, BlockPos pipePosition, Direction direction, ResourceFilter<? super ItemStack> filter, Predicate<ItemStack> pipeHandler) {
+        public boolean extract(World world, BlockPos pipePosition, Direction direction, ResourceFilter<? super ItemStack> filter, ToLongFunction<ItemStack> pipeHandler, long maxExtractionAmount) {
             Inventory out = InventoryUtils.getInventoryAt(world, pipePosition.offset(direction));
             Direction opp = direction.getOpposite();
 
@@ -88,10 +71,14 @@ public class VanillaItemPipeLogic implements PipeLogic<ItemStack> {
                 if (!InventoryUtils.canExtract(out, stack, i, opp) || (!filter.isEmpty() && !filter.passFilterTest(stack)))
                     continue;
 
-                if (stack.isEmpty())
+                if (stack.getCount() < maxExtractionAmount)
                     continue;
-                if (pipeHandler.test(stack)) {
-                    stack.decrement(1);
+
+                ItemStack copy = stack.copy();
+                copy.setCount((int) maxExtractionAmount);
+                int extracted = (int) pipeHandler.applyAsLong(copy);
+                if (extracted > 0) {
+                    stack.decrement(extracted);
                     out.markDirty();
                     return true;
                 }
@@ -100,13 +87,15 @@ public class VanillaItemPipeLogic implements PipeLogic<ItemStack> {
             return false;
         }
     };
-
     private static final StorageFinder<ItemStack> STORAGE_FINDER = (world, pos, dir) -> InventoryUtils.getInventoryAt(world, pos) != null;
-
     private static final StorageInserter<ItemStack> STORAGE_INSERTER = (world, pos, direction, stack) -> {
         Inventory inv = InventoryUtils.getInventoryAt(world, pos);
         return inv != null && InventoryUtils.putStackInInventory(stack, inv) != ItemStack.EMPTY;
     };
+    public static VanillaItemPipeLogic INSTANCE = new VanillaItemPipeLogic();
+
+    private VanillaItemPipeLogic() {
+    }
 
     @Override
     public InsertionChecker<ItemStack> getInsertionChecker() {

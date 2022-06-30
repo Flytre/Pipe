@@ -50,6 +50,12 @@ class PipePath<C> {
         return new PipePath<>(path.destination(), new LinkedList<>(path.path()), resource, path.handler(), path.direction(), path.anim());
     }
 
+    public static <C> PipePath<C> get(PotentialQuantified<C> path, C resource) {
+        var handler = path.potential().handler();
+        return new PipePath<>(path.potential().destination(), new LinkedList<>(path.potential().path()), handler.copyWithQuantity(resource,path.amount()), handler, path.potential().direction(), path.potential().anim());
+    }
+
+
     public Direction getAnim() {
         return anim;
     }
@@ -80,7 +86,7 @@ class PipePath<C> {
         tag.put("path", list);
 
         NbtCompound resourceTag = new NbtCompound();
-        resourceHandler.writeFilterNbt(resourceTag, this.resource);
+        resourceHandler.writeNbt(resourceTag, this.resource);
         tag.put("stack", resourceTag);
 
         tag.putInt("dir", direction.getId());
@@ -150,4 +156,8 @@ class PipePath<C> {
             return result;
         }
     }
+
+    record PotentialQuantified<C>(Potential<C> potential, long amount) {}
+
+
 }

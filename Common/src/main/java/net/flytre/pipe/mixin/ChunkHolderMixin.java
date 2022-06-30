@@ -1,6 +1,6 @@
 package net.flytre.pipe.mixin;
 
-import net.flytre.pipe.impl.ItemPipeEntity;
+import net.flytre.pipe.impl.item.ItemPipeEntity;
 import net.flytre.pipe.impl.registry.Registry;
 import net.minecraft.block.entity.BlockEntity;
 import net.minecraft.network.Packet;

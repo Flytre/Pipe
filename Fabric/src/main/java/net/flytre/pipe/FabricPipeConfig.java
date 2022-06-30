@@ -1,4 +1,4 @@
-package net.flytre.pipe.registry;
+package net.flytre.pipe;
 
 
 import com.google.gson.annotations.SerializedName;
@@ -6,10 +6,10 @@ import net.flytre.flytre_lib.api.config.ConfigEventAcceptor;
 import net.flytre.flytre_lib.api.config.annotation.Description;
 import net.flytre.flytre_lib.api.config.annotation.DisplayName;
 import net.flytre.flytre_lib.api.config.network.SyncedConfig;
-import net.flytre.pipe.impl.VanillaItemPipeLogic;
-import net.flytre.pipe.impl.ItemPipeBlock;
-import net.flytre.pipe.impl.ItemPipeEntity;
-import net.flytre.pipe.impl.FabricItemPipeLogic;
+import net.flytre.pipe.impl.item.VanillaItemPipeLogic;
+import net.flytre.pipe.impl.item.ItemPipeBlock;
+import net.flytre.pipe.impl.item.ItemPipeEntity;
+import net.flytre.pipe.impl.item.FabricItemPipeLogic;
 
 public class FabricPipeConfig implements SyncedConfig, ConfigEventAcceptor {
 

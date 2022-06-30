@@ -1,7 +1,7 @@
 package net.flytre.pipe.impl.network;
 
 import net.flytre.flytre_lib.api.storage.inventory.filter.FilterInventory;
-import net.flytre.pipe.impl.ItemPipeEntity;
+import net.flytre.pipe.impl.item.ItemPipeEntity;
 import net.flytre.pipe.impl.registry.Registry;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.entity.player.PlayerInventory;
@@ -15,7 +15,7 @@ import net.minecraft.util.math.BlockPos;
 
 import java.util.HashSet;
 
-public class PipeHandler extends ScreenHandler {
+public class ItemPipeHandler extends ScreenHandler {
     private final FilterInventory inv;
     private BlockPos pos;
     private boolean synced;
@@ -24,7 +24,7 @@ public class PipeHandler extends ScreenHandler {
     private boolean matchNbt;
     private boolean isRoundRobin;
 
-    public PipeHandler(int syncId, PlayerInventory playerInventory, PacketByteBuf buf) {
+    public ItemPipeHandler(int syncId, PlayerInventory playerInventory, PacketByteBuf buf) {
         this(syncId, playerInventory, new ItemPipeEntity(BlockPos.ORIGIN, Registry.ITEM_PIPE.get().getDefaultState()));
         pos = buf.readBlockPos();
         synced = true;
@@ -35,7 +35,7 @@ public class PipeHandler extends ScreenHandler {
     }
 
 
-    public PipeHandler(int syncId, PlayerInventory playerInventory, ItemPipeEntity entity) {
+    public ItemPipeHandler(int syncId, PlayerInventory playerInventory, ItemPipeEntity entity) {
         super(Registry.ITEM_PIPE_SCREEN_HANDLER.get(), syncId);
         this.inv = entity.getFilter();
         pos = BlockPos.ORIGIN;

@@ -1,6 +1,6 @@
 package net.flytre.pipe.impl.network;
 
-import net.flytre.pipe.impl.ItemPipeEntity;
+import net.flytre.pipe.impl.item.ItemPipeEntity;
 import net.minecraft.block.entity.BlockEntity;
 import net.minecraft.network.Packet;
 import net.minecraft.network.PacketByteBuf;

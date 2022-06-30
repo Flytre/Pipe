@@ -1,0 +1,23 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "pattern": [
+    "glg",
+    "gpg",
+    "glg"
+  ],
+  "key": {
+    "g": {
+      "item": "minecraft:diamond"
+    },
+    "p": {
+      "item": "pipe:fast_pipe"
+    },
+    "l": {
+      "item" : "minecraft:glass_pane"
+    }
+  },
+  "result": {
+    "item": "pipe:lightning_pipe",
+    "count": 4
+  }
+}

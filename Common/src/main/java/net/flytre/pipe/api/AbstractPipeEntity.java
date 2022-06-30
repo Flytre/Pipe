@@ -2,7 +2,6 @@ package net.flytre.pipe.api;
 
 import net.flytre.flytre_lib.api.base.util.Formatter;
 import net.flytre.flytre_lib.api.storage.inventory.filter.ResourceFilter;
-import net.flytre.flytre_lib.loader.CustomScreenHandlerFactory;
 import net.flytre.pipe.impl.registry.Config;
 import net.flytre.pipe.impl.registry.Registry;
 import net.minecraft.block.Block;
@@ -12,14 +11,12 @@ import net.minecraft.block.entity.BlockEntityType;
 import net.minecraft.nbt.NbtCompound;
 import net.minecraft.nbt.NbtList;
 import net.minecraft.network.Packet;
-import net.minecraft.network.PacketByteBuf;
 import net.minecraft.network.listener.ClientPlayPacketListener;
 import net.minecraft.network.packet.s2c.play.BlockEntityUpdateS2CPacket;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Direction;
 import net.minecraft.world.World;
 import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
 
 import java.util.*;
 import java.util.function.Function;
@@ -34,27 +31,24 @@ import java.util.stream.Collectors;
  * <p>
  * That all being said, a pipe entity is a block entity that stores data about a pipe
  */
-public abstract class AbstractPipeEntity<C, F extends ResourceFilter<? super C>> extends BlockEntity implements CustomScreenHandlerFactory {
+public abstract class AbstractPipeEntity<C, F extends ResourceFilter<? super C>> extends BlockEntity {
 
     /**
      * Stores the current pipe network, recalculated upon any block changes.
      * From this where resources can go is calculated
      */
     private transient final Map<BlockPos, PipeNetworkRoutes<C>> pipeNetwork;
-
-    /**
-     * The network stores the locations of all pipes in the network; The same set is shared across all pipes in the network, so it must
-     * not be altered inappropriately.
-     */
-    private transient NetworkInformation<C> networkInformation = new NetworkInformation<>(getResource());
-
     /**
      * Stores a map of each side of the pipe (indicated by direction) and whether that side is "wrenched"
      * Sides that are "wrenches" artificially block incoming connections, so that pipes can be placed
      * side by side without connecting
      */
     public Map<Direction, Boolean> wrenched;
-
+    /**
+     * The network stores the locations of all pipes in the network; The same set is shared across all pipes in the network, so it must
+     * not be altered inappropriately.
+     */
+    private transient NetworkInformation<C> networkInformation = new NetworkInformation<>(getResourceHandler());
     /**
      * Stores how long ago the cache was cleared to prevent clearing it multiple times
      * in one tick
@@ -101,14 +95,19 @@ public abstract class AbstractPipeEntity<C, F extends ResourceFilter<? super C>>
      */
     private boolean needsSync;
     /**
-     * How fast this pipe should move resources, so its speed.
+     * How fast this pipe should move an item through itself.
      */
-    private int ticksPerOperation = 20;
+    private int ticksThroughPipe = 20;
+
     /**
-     * Checks if ticksPerOperation is set to match whether this is a fast pipe or normal, and if not
-     * takes care of that.
+     * How often this pipe should pull from a servo
      */
-    private boolean speedSet = false;
+    private int ticksBetweenPull = 20;
+
+    /**
+     * Initializes pipe speed variables, like how often it should try to pull.
+     */
+    private boolean speedVariablesSet = false;
 
     public AbstractPipeEntity(BlockEntityType<?> type, BlockPos pos, BlockState state) {
         super(type, pos, state);
@@ -117,7 +116,7 @@ public abstract class AbstractPipeEntity<C, F extends ResourceFilter<? super C>>
         roundRobinMode = false;
         resources = new HashSet<>();
         wrenched = Arrays.stream(Direction.values()).collect(Collectors.toMap(Function.identity(), i -> false));
-        filter = getResource().getDefaultFilter();
+        filter = getResourceHandler().getDefaultFilter();
         needsSync = false;
     }
 
@@ -125,7 +124,7 @@ public abstract class AbstractPipeEntity<C, F extends ResourceFilter<? super C>>
      * Identifies all the possible directions a resource could potentially go to from a position. This could be an output
      * destination or another pipe.
      */
-    private Collection<ValidDirection<C>> getValidDirections(BlockPos startingPos, World world) {
+    private Collection<ValidDirection<C>> getValidDirections(BlockPos startingPos, World world, PipeNetworkRoutes<C> parent) {
         Set<ValidDirection<C>> result = new HashSet<>();
 
         if (world == null)
@@ -133,7 +132,7 @@ public abstract class AbstractPipeEntity<C, F extends ResourceFilter<? super C>>
 
         AbstractPipeEntity<?, ?> me = (AbstractPipeEntity<?, ?>) world.getBlockEntity(startingPos);
 
-        if (me == null || !(me.getResource().getResourceClass() == getResource().getResourceClass()))
+        if (me == null || !(me.getResourceHandler().getResourceClass() == getResourceHandler().getResourceClass()))
             return result;
 
         for (Direction direction : Direction.values()) { //For each possible direction
@@ -145,14 +144,22 @@ public abstract class AbstractPipeEntity<C, F extends ResourceFilter<? super C>>
                 if (entity != null && isPipeWithSameResource(entity)) {
                     @SuppressWarnings("unchecked") AbstractPipeEntity<C, ?> abstractPipeEntity = (AbstractPipeEntity<C, ?>) entity;
 
-                    if (!(abstractPipeEntity.getResource().getResourceClass() == getResource().getResourceClass()))
+                    if (!(abstractPipeEntity.getResourceHandler().getResourceClass() == getResourceHandler().getResourceClass()))
                         continue;
 
                     PipeSide state = world.getBlockState(startingPos.offset(direction)).get(AbstractPipeBlock.getProperty(direction.getOpposite()));
-                    if (state == PipeSide.CONNECTED)
+
+                    boolean isFiltered = abstractPipeEntity instanceof FilteredPipe;
+
+                    if (state == PipeSide.CONNECTED && !isFiltered)
                         result.add(new ValidDirection<>(direction, false, null, null));
-                    else if (state == PipeSide.SERVO)
+                    else if (state == PipeSide.CONNECTED)
+                        result.add(new ValidDirection<>(direction, false, () -> abstractPipeEntity.new FilteredResourceFilter(), parent::isRoundRobin));
+                    else if (state == PipeSide.SERVO && !isFiltered)
                         result.add(new ValidDirection<>(direction, false, () -> abstractPipeEntity.filter, abstractPipeEntity::isRoundRobinMode));
+                    else if (state == PipeSide.SERVO)
+                        result.add(new ValidDirection<>(direction, false, () -> abstractPipeEntity.new FilteredResourceFilter(), abstractPipeEntity::isRoundRobinMode));
+
 
                 } else if (getPipeLogic().getStorgeFinder().hasStorage(world, pos, direction.getOpposite())) {
                     result.add(new ValidDirection<>(direction, true, null, null));
@@ -167,14 +174,35 @@ public abstract class AbstractPipeEntity<C, F extends ResourceFilter<? super C>>
      * @param resource       the resource to check for
      * @param destinationPos the position of the destination
      * @param direction      the direction to insert from
-     * @return Checks if resource X can be inserted into destination Y from Direction D. However, it also takes into consideration all other resources flowing into the destination
-     * from the network, and if those being inserted already would make it impossible for resources resource X to be inserted, MAY return false.
+     * @return The amount of the resource that can be inserted into the destination
      */
-    private boolean canInsertFirm(C resource, BlockPos destinationPos, Direction direction, boolean isStuck) {
-        Set<TimedPipePath<C>> paths = networkInformation.getTrackedPaths(resource);
+
+
+    private long getInsertionAmount(C resource, BlockPos destinationPos, Direction direction, boolean isStuck) {
+        List<NetworkInformation<C>> networks = new ArrayList<>();
+        for (Direction potential : Direction.values()) {
+            assert world != null;
+            BlockPos offset = destinationPos.offset(potential);
+            BlockEntity other = world.getBlockEntity(offset);
+            if (isPipeWithSameResource(other)) {
+                assert other != null;
+                //noinspection unchecked
+                NetworkInformation<C> network = ((AbstractPipeEntity<C, ?>) other).networkInformation;
+                if (!networks.contains(network))
+                    networks.add(network);
+            }
+        }
+        Set<TimedPipePath<C>> paths = networks.stream().map(i -> i.getTrackedPaths(resource)).flatMap(Collection::stream).collect(Collectors.toSet());
+
         //basically, if multiple resources are stuck they will block EACH OTHER from finding a valid container; using isStuck to manually override that behavior prevents this.
-        int flowCount = isStuck ? 0 : ((int) paths.stream().filter(k -> k.getDestination() == destinationPos).count());
-        return getPipeLogic().getInsertionChecker().canInsert(world, resource, destinationPos, direction, isStuck, flowCount);
+        long flowCount = isStuck ? 0 :
+                (paths.stream()
+                        .filter(k -> k.getDestination() == destinationPos)
+                        .map(r -> getResourceHandler().getQuantity(r.getResource()))
+                        .reduce(0L, Long::sum)
+                );
+        //Insertion count should always be >= 0 AND should not include flow
+        return Math.max(0, getPipeLogic().getInsertionChecker().getInsertionAmount(world, resource, destinationPos, direction, isStuck, flowCount) - flowCount);
     }
 
 
@@ -191,19 +219,51 @@ public abstract class AbstractPipeEntity<C, F extends ResourceFilter<? super C>>
      * <p>
      * Internally, it uses a cache based approach although this is subject to change.
      */
+
     private List<PipePath<C>> findDestinations(C resource, BlockPos start, boolean stuck) {
 
         if (!pipeNetwork.containsKey(start))
             pipeNetwork.put(start, getNetwork(start));
 
-        List<PipePath.Potential<C>> paths = pipeNetwork.get(start).getPathsFor(resource, (resource2, pos, dir) -> {
-
+        List<PipePath.PotentialQuantified<C>> paths = pipeNetwork.get(start).getQuantifiedPathsFor(resource, (resource2, pos, dir) -> {
             if (world == null)
-                return false;
-
-            return canInsertFirm(resource2, pos, dir, stuck);
+                return 0L;
+            return getInsertionAmount(resource2, pos, dir, stuck);
         });
-        return paths.stream().map(i -> PipePath.get(i, resource)).toList();
+
+        record Destination(BlockPos pos, Direction direction) {
+            @Override
+            public boolean equals(Object o) {
+                if (this == o) return true;
+                if (o == null || getClass() != o.getClass()) return false;
+
+                Destination that = (Destination) o;
+
+                if (!pos.equals(that.pos)) return false;
+                return direction == that.direction;
+            }
+
+            @Override
+            public int hashCode() {
+                int result = pos.hashCode();
+                result = 31 * result + direction.hashCode();
+                return result;
+            }
+        }
+
+        //There could be multiple paths to get to the same destination, so eliminate all duplicates
+        Set<Destination> destinations = new HashSet<>();
+        List<PipePath<C>> result = new ArrayList<>();
+
+        for (var pq : paths) {
+            Destination destination = new Destination(pq.potential().destination(), pq.potential().direction());
+            if (!destinations.contains(destination) && pq.amount() > 0) {
+                destinations.add(destination);
+                result.add(PipePath.get(pq, resource));
+            }
+        }
+
+        return result;
     }
 
     /**
@@ -215,16 +275,17 @@ public abstract class AbstractPipeEntity<C, F extends ResourceFilter<? super C>>
         for (Direction direction : Direction.values()) {
             if (hasServo(direction) && cooldown <= 0) {
                 assert world != null;
-                if (getPipeLogic().getStorageExtractor().extract(world, pos, direction, filter, (stack) -> tryExtract(pos, direction, stack)))
+                if (getPipeLogic().getStorageExtractor().extract(world, pos, direction, filter, (stack) -> extractGreedy(pos, direction, stack), getAmountToExtract()))
                     break;
             }
         }
     }
 
-    private boolean tryExtract(BlockPos pipePos, Direction direction, C resource) {
-        C singleResource = getResource().copyWithSingleUnit(resource);
-
-        List<PipePath<C>> results = findDestinations(singleResource, pipePos.offset(direction), false);
+    /**
+     * @return the amount of resource extracted
+     */
+    private long extractGreedy(BlockPos pipePos, Direction direction, C resource) {
+        List<PipePath<C>> results = findDestinations(resource, pipePos.offset(direction), false);
         if (results.size() <= roundRobinIndex) {
             roundRobinIndex = 0;
         }
@@ -232,9 +293,9 @@ public abstract class AbstractPipeEntity<C, F extends ResourceFilter<? super C>>
         PipePath<C> result = roundRobinIndex < results.size() ? results.get(roundRobinIndex++) : null;
 
         if (result == null)
-            return false;
+            return 0;
 
-        TimedPipePath<C> addition = new TimedPipePath<>(result, ticksPerOperation * 3 / 2);
+        TimedPipePath<C> addition = new TimedPipePath<>(result, ticksThroughPipe * 3 / 2);
         resources.add(addition);
         networkInformation.addTrackedPath(addition);
 
@@ -242,15 +303,19 @@ public abstract class AbstractPipeEntity<C, F extends ResourceFilter<? super C>>
         if (result.getLength() < Registry.PIPE_CONFIG.getConfig().maxRenderPipeLength)
             needsSync = true;
 
-        return true;
+        return getResourceHandler().getQuantity(result.getResource());
     }
 
 
-    protected abstract ResourceHandler<C, F> getResource();
+    protected abstract ResourceHandler<C, F> getResourceHandler();
 
     protected abstract PipeLogic<C> getPipeLogic();
 
-    protected abstract int setTicksPerOperation();
+    protected abstract int getBaseTicksBetweenPull();
+
+    protected abstract int getBaseTicksThroughPipe();
+
+    protected abstract long getAmountToExtract();
 
     /**
      * Gets the PipeSide for the given Direction, aka whether/how the pipe is connected at that side.
@@ -283,6 +348,7 @@ public abstract class AbstractPipeEntity<C, F extends ResourceFilter<? super C>>
      */
     @Override
     protected void writeNbt(NbtCompound tag) {
+
         tag.putInt("wrenched", Formatter.mapToInt(wrenched));
         tag.putInt("rri", this.roundRobinIndex);
         tag.putBoolean("rrm", this.roundRobinMode);
@@ -291,7 +357,7 @@ public abstract class AbstractPipeEntity<C, F extends ResourceFilter<? super C>>
         for (TimedPipePath<C> piped : resources)
             list.add(piped.toTag(new NbtCompound(), false));
         tag.put("queue", list);
-        tag.put("filter", getResource().writeFilterNbt(filter));
+        tag.put("filter", getResourceHandler().writeFilterNbt(filter));
     }
 
     /**
@@ -313,11 +379,18 @@ public abstract class AbstractPipeEntity<C, F extends ResourceFilter<? super C>>
         readQueueFromTag(tag);
 
         if (tag.contains("filter")) {
-            this.filter = getResource().readFilterNbt(tag.getCompound("filter"));
+            this.filter = getResourceHandler().readFilterNbt(tag.getCompound("filter"));
         }
 
-        if (tag.contains("ticksPerOperation"))
-            ticksPerOperation = tag.getInt("ticksPerOperation");
+        if (tag.contains("ticksThroughPipe"))
+            ticksThroughPipe = tag.getInt("ticksThroughPipe");
+        else
+            ticksThroughPipe = getBaseTicksThroughPipe();
+
+        if (tag.contains("ticksBetweenPull"))
+            ticksBetweenPull = tag.getInt("ticksBetweenPull");
+        else
+            ticksBetweenPull = getBaseTicksBetweenPull();
 
         super.readNbt(tag);
     }
@@ -335,14 +408,14 @@ public abstract class AbstractPipeEntity<C, F extends ResourceFilter<? super C>>
         return result;
     }
 
-    protected boolean isPipeWithSameResource(BlockEntity other) {
+    public boolean isPipeWithSameResource(BlockEntity other) {
         if (other == null)
             return false;
 
         if (!(other instanceof AbstractPipeEntity<?, ?> abstractPipeEntity))
             return false;
 
-        return abstractPipeEntity.getResource().getResourceClass() == getResource().getResourceClass();
+        return abstractPipeEntity.getResourceHandler().getResourceClass() == getResourceHandler().getResourceClass();
     }
 
     /**
@@ -355,6 +428,7 @@ public abstract class AbstractPipeEntity<C, F extends ResourceFilter<? super C>>
      */
     private void tickQueuedResources() {
         Set<TimedPipePath<C>> toRemove = new HashSet<>(resources.size() / 2 + 1);
+        Set<TimedPipePath<C>> removeResourcesOnly = new HashSet<>(resources.size() / 2 + 1);
         Set<TimedPipePath<C>> toAdd = new HashSet<>(resources.size() / 2 + 1);
 
         for (TimedPipePath<C> timed : resources) {
@@ -369,15 +443,20 @@ public abstract class AbstractPipeEntity<C, F extends ResourceFilter<? super C>>
                     BlockPos next = path.peek();
                     assert world != null;
                     BlockEntity entity = world.getBlockEntity(next);
-                    if (!(isConnectedToPipe(next, entity))) {
+                    if (!canTransferToNext(next, entity, timed.getResource())) {
                         reroute(toRemove, toAdd, timed);
                     } else {
-                        @SuppressWarnings("unchecked") AbstractPipeEntity<C, ?> abstractPipeEntity = (AbstractPipeEntity<C, ?>) entity;
-                        timed.setStuck(false);
-                        assert abstractPipeEntity != null;
-                        abstractPipeEntity.addResultToPending(timed);
-                        toRemove.add(timed);
-                        timed.setTime(abstractPipeEntity.ticksPerOperation);
+                        if (timed.isStuck()) {
+                            timed.getPath().addFirst(this.pos);
+                            timed.setTime(ticksThroughPipe);
+                            timed.setStuck(false);
+                        } else {
+                            @SuppressWarnings("unchecked") AbstractPipeEntity<C, ?> abstractPipeEntity = (AbstractPipeEntity<C, ?>) entity;
+                            assert abstractPipeEntity != null;
+                            abstractPipeEntity.addResultToPending(timed);
+                            removeResourcesOnly.add(timed);
+                            timed.setTime(abstractPipeEntity.ticksThroughPipe);
+                        }
                     }
                 } else {
                     boolean transferred = getPipeLogic().getStorageInserter().insert(world, timed.getDestination(), timed.getDirection(), timed.getResource());
@@ -390,9 +469,16 @@ public abstract class AbstractPipeEntity<C, F extends ResourceFilter<? super C>>
         }
 
         resources.removeAll(toRemove);
+        resources.removeAll(removeResourcesOnly);
         networkInformation.removeTrackedPaths(toRemove);
         resources.addAll(toAdd);
         networkInformation.addTrackedPaths(toAdd);
+    }
+
+    public boolean canTransferToNext(BlockPos next, BlockEntity entity, C resource) {
+        if (!isConnectedToPipe(next, entity))
+            return false;
+        return !(entity instanceof FilteredPipe pipe) || pipe.canAccept(resource);
     }
 
 
@@ -423,7 +509,7 @@ public abstract class AbstractPipeEntity<C, F extends ResourceFilter<? super C>>
             timed.setTime(20);
             timed.setStuck(true);
         } else {
-            TimedPipePath<C> zero = new TimedPipePath<>(results.get(0), ticksPerOperation, false);
+            TimedPipePath<C> zero = new TimedPipePath<>(results.get(0), ticksThroughPipe, false);
             toAdd.add(zero);
             toRemove.add(timed);
         }
@@ -445,9 +531,10 @@ public abstract class AbstractPipeEntity<C, F extends ResourceFilter<? super C>>
             clearNetworkCache(true);
         }
 
-        if (!speedSet && world != null) {
-            speedSet = true;
-            ticksPerOperation = setTicksPerOperation();
+        if (!speedVariablesSet && world != null) {
+            speedVariablesSet = true;
+            ticksThroughPipe = getBaseTicksThroughPipe();
+            ticksBetweenPull = getBaseTicksBetweenPull();
         }
 
         if (cooldown > 0)
@@ -457,7 +544,7 @@ public abstract class AbstractPipeEntity<C, F extends ResourceFilter<? super C>>
 
         if (cooldown <= 0) {
             addToQueue();
-            cooldown = ticksPerOperation / 2;
+            cooldown = ticksBetweenPull;
         }
 
 
@@ -480,34 +567,27 @@ public abstract class AbstractPipeEntity<C, F extends ResourceFilter<? super C>>
             sync();
     }
 
-
-    /**
-     * Send data to the client about what to display on the pipe's screen.
-     */
-    @Override
-    public void sendPacket(PacketByteBuf packetByteBuf) {
-        packetByteBuf.writeBlockPos(pos);
-        getResource().writeFilter(packetByteBuf, filter);
-        packetByteBuf.writeBoolean(this.isRoundRobinMode());
-    }
-
     @Override
     public @NotNull Packet<ClientPlayPacketListener> toUpdatePacket() {
-        return BlockEntityUpdateS2CPacket.create(this, (i -> ((AbstractPipeEntity<?,?>) i).toClientTag()));
+        return BlockEntityUpdateS2CPacket.create(this, (i -> ((AbstractPipeEntity<?, ?>) i).toClientTag()));
     }
 
     private void readQueueFromTag(NbtCompound tag) {
         NbtList list = tag.getList("queue", 10);
         resources = new HashSet<>();
         for (int i = 0; i < list.size(); i++) {
-            TimedPipePath<C> result = TimedPipePath.fromTag(list.getCompound(i), getResource());
+            TimedPipePath<C> result = TimedPipePath.fromTag(list.getCompound(i), getResourceHandler());
             networkInformation.addTrackedPath(result);
             resources.add(result);
         }
     }
 
-    public int getTicksPerOperation() {
-        return ticksPerOperation;
+    public int getTicksBetweenPull() {
+        return ticksBetweenPull;
+    }
+
+    public int getTicksThroughPipe() {
+        return ticksThroughPipe;
     }
 
     public NbtCompound toClientTag() {
@@ -519,7 +599,7 @@ public abstract class AbstractPipeEntity<C, F extends ResourceFilter<? super C>>
                 list.add(piped.toTag(new NbtCompound(), true));
 
         tag.put("queue", list);
-        tag.putInt("ticksPerOperation", ticksPerOperation);
+        tag.putInt("ticksThroughPipe", ticksThroughPipe);
         super.writeNbt(tag);
         return tag;
     }
@@ -540,7 +620,7 @@ public abstract class AbstractPipeEntity<C, F extends ResourceFilter<? super C>>
         if (ticksSinceLastCacheClear == 0)
             return;
 
-        NetworkInformation<C> information = new NetworkInformation<>(getResource());
+        NetworkInformation<C> information = new NetworkInformation<>(getResourceHandler());
         clearNetworkCacheRipple(information, clearPipeNetwork);
     }
 
@@ -570,7 +650,7 @@ public abstract class AbstractPipeEntity<C, F extends ResourceFilter<? super C>>
                 BlockEntity entity = world.getBlockEntity(pos);
 
                 if (isPipeWithSameResource(entity)) { //If connected to another pipe
-                    @SuppressWarnings("unchecked") AbstractPipeEntity<C,?> abstractPipeEntity = (AbstractPipeEntity<C, ?>)entity;
+                    @SuppressWarnings("unchecked") AbstractPipeEntity<C, ?> abstractPipeEntity = (AbstractPipeEntity<C, ?>) entity;
                     PipeSide state = world.getBlockState(this.pos.offset(direction)).get(AbstractPipeBlock.getProperty(direction.getOpposite()));
                     if (state == PipeSide.CONNECTED || (state == PipeSide.SERVO && !(side == PipeSide.SERVO))) {
                         assert abstractPipeEntity != null;
@@ -595,80 +675,48 @@ public abstract class AbstractPipeEntity<C, F extends ResourceFilter<? super C>>
         //The supplier is used so recursive nodes aren't added early and prioritized a bit extra even
         //when a terminal is closer
         record TempPipeData<C>(PipePath.Potential<C> path, Supplier<PipeNetworkRoutes<C>> parent,
-                            boolean storage) {
+                               boolean storage) {
         }
 
         Deque<TempPipeData<C>> toVisit = new LinkedList<>();
-        Set<BlockPos> visited = new HashSet<>();
-        Set<VisitedAngle> inventorySides = new HashSet<>();
-        toVisit.add(new TempPipeData<>(new PipePath.Potential<>(this.getPos(), new LinkedList<>(), getResource(), Direction.NORTH, animate), () -> result, false));
+        toVisit.add(new TempPipeData<>(new PipePath.Potential<>(this.getPos(), new LinkedList<>(), getResourceHandler(), Direction.NORTH, animate), () -> result, false));
 
         while (toVisit.size() > 0) {
             TempPipeData<C> popped = toVisit.pop();
             BlockPos current = popped.path().destination();
             Queue<BlockPos> path = popped.path().path();
             PipeNetworkRoutes<C> parent = popped.parent().get();
-            VisitedAngle currentAngle = new VisitedAngle(popped.path().direction(), current);
 
 
             if (parent.isTerminal())
                 continue;
 
 
-            if (!current.equals(start) && !(inventorySides.contains(currentAngle)) && popped.storage()) {
+            if (!current.equals(start) && popped.storage()) {
                 parent.addTerminal(popped.path());
-                inventorySides.add(currentAngle);
                 continue;
             }
 
             if (isPipeWithSameResource(world.getBlockEntity(current))) {
-                Collection<ValidDirection<C>> neighbors = getValidDirections(current, world);
+                Collection<ValidDirection<C>> neighbors = getValidDirections(current, world, parent);
                 for (ValidDirection<C> transferResult : neighbors) {
                     Direction direction = transferResult.direction();
-                    if ((!visited.contains(current.offset(direction)) || transferResult.storage())) {
+                    BlockPos offset = current.offset(direction);
+                    if (transferResult.storage() || !path.contains(offset)) {
 
                         LinkedList<BlockPos> newPath = new LinkedList<>(path);
                         newPath.add(current);
 
                         if (transferResult.roundRobin() == null || transferResult.filter() == null) {
-                            toVisit.add(new TempPipeData<>(new PipePath.Potential<>(current.offset(direction), newPath, getResource(), direction.getOpposite(), animate), () -> parent, transferResult.storage()));
+                            toVisit.add(new TempPipeData<>(new PipePath.Potential<>(offset, newPath, getResourceHandler(), direction.getOpposite(), animate), () -> parent, transferResult.storage()));
                         } else {
-                            toVisit.add(new TempPipeData<>(new PipePath.Potential<>(current.offset(direction), newPath, getResource(), direction.getOpposite(), animate), () -> parent.addNonTerminal(() -> transferResult.filter().get(), transferResult.roundRobin()), transferResult.storage()));
+                            toVisit.add(new TempPipeData<>(new PipePath.Potential<>(offset, newPath, getResourceHandler(), direction.getOpposite(), animate), () -> parent.addNonTerminal(() -> transferResult.filter().get(), transferResult.roundRobin()), transferResult.storage()));
                         }
                     }
                 }
             }
-            visited.add(current);
         }
-
         return result;
-    }
-
-    /**
-     * When doing the BFS search, the pos stores the actual position while the direction stores
-     * the direction travelled to get to that position. This is important because you can access
-     * inventories from multiple sides, and in round-robin mode it should hit all sides.
-     */
-    private record VisitedAngle(@Nullable Direction direction, BlockPos pos) {
-
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-
-            VisitedAngle that = (VisitedAngle) o;
-
-            if (direction != that.direction) return false;
-            return Objects.equals(pos, that.pos);
-        }
-
-        @Override
-        public int hashCode() {
-            int result = direction != null ? direction.hashCode() : 0;
-            result = 31 * result + (pos != null ? pos.hashCode() : 0);
-            return result;
-        }
     }
 
     /**
@@ -677,5 +725,24 @@ public abstract class AbstractPipeEntity<C, F extends ResourceFilter<? super C>>
      */
     private record ValidDirection<C>(Direction direction, boolean storage, Supplier<ResourceFilter<? super C>> filter,
                                      Supplier<Boolean> roundRobin) {
+    }
+
+    private class FilteredResourceFilter implements ResourceFilter<C> {
+
+        @Override
+        public boolean passFilterTest(C resource) {
+            if (!(AbstractPipeEntity.this instanceof FilteredPipe filteredPipe))
+                return filter.passFilterTest(resource);
+            if (!filteredPipe.canAccept(resource))
+                return false;
+            return filter.isEmpty() || filter.passFilterTest(resource);
+        }
+
+        @Override
+        public boolean isEmpty() {
+            if (!(AbstractPipeEntity.this instanceof FilteredPipe))
+                return filter.isEmpty();
+            return false;
+        }
     }
 }
