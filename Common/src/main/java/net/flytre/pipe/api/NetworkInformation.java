@@ -17,9 +17,9 @@ class NetworkInformation<C> {
 
     public NetworkInformation(ResourceHandler<C,?> resourceHandler) {
         this.resourceHandler = resourceHandler;
-        positions = new HashSet<>();
-        trackedPaths = new HashMap<>();
-        inverseTrackedPaths = new HashMap<>();
+        positions = Collections.synchronizedSet(new HashSet<>());
+        trackedPaths = Collections.synchronizedMap(new HashMap<>());
+        inverseTrackedPaths = Collections.synchronizedMap(new HashMap<>());
     }
 
     public void addPosition(BlockPos position) {
