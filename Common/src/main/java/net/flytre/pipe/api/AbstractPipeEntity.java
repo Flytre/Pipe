@@ -686,15 +686,11 @@ public abstract class AbstractPipeEntity<C, F extends ResourceFilter<? super C>>
         if (!pipeNetwork.containsKey(start))
             pipeNetwork.put(start, getNetwork(start));
 
-        long startTime = System.nanoTime();
         List<PipePath.PotentialQuantified<C>> paths = pipeNetwork.get(start).getQuantifiedPathsFor(resource, (resource2, pos, dir) -> {
             if (world == null)
                 return 0L;
             return getInsertionAmount(resource2, pos, dir, stuck);
         });
-        long endTime = System.nanoTime();
-        long duration = (endTime - startTime);  //divide by 1000000 to get milliseconds.
-        System.out.println("Finding Potential Paths took " + duration / 1_000_000);
 
         record Destination(BlockPos pos, Direction direction) {
             @Override
